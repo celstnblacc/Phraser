@@ -61,6 +61,18 @@ The process is entirely local:
 
 For detailed build instructions including platform-specific requirements, see [BUILD.md](BUILD.md).
 
+Create a local macOS app bundle from source:
+
+```bash
+bun run app:create
+```
+
+The generated app is placed at:
+
+```bash
+src-tauri/target/release/bundle/macos/Parler.app
+```
+
 ### Quality & Security Checks
 
 Before committing, run the same checks we used in the ship pipeline:
