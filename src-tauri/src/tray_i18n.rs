@@ -58,10 +58,9 @@ mod tests {
     }
 
     #[test]
-    fn get_language_code_empty_returns_en() {
-        // empty string split produces [""], unwrap_or("en") won't trigger,
-        // but the first element is "" which will miss in TRANSLATIONS and
-        // fall back to English in get_tray_translations
+    fn get_language_code_empty_returns_empty() {
+        // Empty input returns "" — the caller (get_tray_translations) handles
+        // the fallback to English when the code misses in TRANSLATIONS.
         let code = get_language_code("");
         assert_eq!(code, "");
     }

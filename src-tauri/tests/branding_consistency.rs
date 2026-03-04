@@ -32,6 +32,13 @@ fn tauri_dev_conf() -> &'static serde_json::Value {
     CONF.get_or_init(|| read_json(&crate_dir().join("tauri.dev.conf.json")))
 }
 
+fn cargo_toml_content() -> &'static String {
+    static CONTENT: OnceLock<String> = OnceLock::new();
+    CONTENT.get_or_init(|| {
+        fs::read_to_string(crate_dir().join("Cargo.toml")).expect("Failed to read Cargo.toml")
+    })
+}
+
 #[test]
 fn tauri_conf_product_name_is_phraser() {
     assert_eq!(tauri_conf()["productName"].as_str().unwrap(), "Phraser");
@@ -81,20 +88,16 @@ fn tauri_dev_conf_identifier_is_phraser_dev() {
 
 #[test]
 fn cargo_toml_package_name_is_phraser() {
-    let content =
-        fs::read_to_string(crate_dir().join("Cargo.toml")).expect("Failed to read Cargo.toml");
     assert!(
-        content.contains("name = \"phraser\""),
+        cargo_toml_content().contains("name = \"phraser\""),
         "Cargo.toml [package] name should be 'phraser'"
     );
 }
 
 #[test]
 fn cargo_toml_lib_name_is_phraser_app_lib() {
-    let content =
-        fs::read_to_string(crate_dir().join("Cargo.toml")).expect("Failed to read Cargo.toml");
     assert!(
-        content.contains("name = \"phraser_app_lib\""),
+        cargo_toml_content().contains("name = \"phraser_app_lib\""),
         "Cargo.toml [lib] name should be 'phraser_app_lib'"
     );
 }
