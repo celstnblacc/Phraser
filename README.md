@@ -6,6 +6,9 @@
 ## Custom Additions
 
 - **Conditional model switching**: Automatically use a different (larger) model when audio recordings exceed a configurable duration threshold (default: 10 seconds). This lets you use a fast lightweight model for short recordings and a more accurate model for longer ones.
+- **Security dependency hardening**: Updated Rust transitive dependencies in `Cargo.lock` to address current `cargo audit` vulnerability findings (`bytes`, `rkyv`, `time`).
+- **Stronger history-path validation**: Hardened audio history file-name validation (including empty-name rejection) and expanded unit test coverage for history/settings command logic.
+- **Project quality gate hook**: Added `.project-hooks/pre-commit` with format, lint, Rust check, and Rust test checks, plus documented usage in the README.
 
 ---
 
