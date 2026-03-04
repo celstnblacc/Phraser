@@ -48,7 +48,7 @@ The process is entirely local:
 
 ### Installation
 
-1. Download the latest release from the [releases page](https://github.com/Melvynx/Parler/releases) or the [website](https://handy.computer)
+1. Download the latest release from the [releases page](https://github.com/newblacc/Parler/releases) or the [website](https://handy.computer)
    - **macOS**: Also available via [Homebrew cask](https://formulae.brew.sh/cask/handy): `brew install --cask handy`
 2. Install the application
 3. Launch Parler and grant necessary system permissions (microphone, accessibility)
@@ -146,7 +146,7 @@ handy --start-hidden --no-tray
 
 ## Known Issues & Current Limitations
 
-This project is actively being developed and has some [known issues](https://github.com/Melvynx/Parler/issues). We believe in transparency about the current state:
+This project is actively being developed and has some [known issues](https://github.com/newblacc/Parler/issues). We believe in transparency about the current state:
 
 ### Major Issues (Help Wanted)
 
@@ -410,7 +410,7 @@ Parler can auto-discover custom Whisper GGML models placed in the `models` direc
 
 ### How to Contribute
 
-1. **Check existing issues** at [github.com/Melvynx/Parler/issues](https://github.com/Melvynx/Parler/issues)
+1. **Check existing issues** at [github.com/newblacc/Parler/issues](https://github.com/newblacc/Parler/issues)
 2. **Fork the repository** and create a feature branch
 3. **Test thoroughly** on your target platform
 4. **Submit a pull request** with clear description of changes

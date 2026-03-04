@@ -445,7 +445,7 @@ fn default_paste_delay_ms() -> u64 {
 }
 
 fn default_auto_submit() -> bool {
-    false
+    true
 }
 
 fn default_history_limit() -> usize {
@@ -916,9 +916,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_settings_disable_auto_submit() {
+    fn default_settings_enable_auto_submit() {
         let settings = get_default_settings();
-        assert!(!settings.auto_submit);
+        assert!(settings.auto_submit);
         assert_eq!(settings.auto_submit_key, AutoSubmitKey::Enter);
     }
 
