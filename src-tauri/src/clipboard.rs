@@ -70,7 +70,12 @@ fn paste_via_clipboard(
         }
     }
 
-    std::thread::sleep(std::time::Duration::from_millis(50));
+    // Allow enough time for the target app to process the paste event and read
+    // the clipboard. Electron-based apps (e.g. Claude Desktop, VS Code, Slack)
+    // process paste asynchronously through their event loop, so they need
+    // significantly more time than native apps. 250ms provides a comfortable
+    // margin while keeping the UX snappy.
+    std::thread::sleep(std::time::Duration::from_millis(250));
 
     // Restore original clipboard content
     // On Wayland, prefer wl-copy for better compatibility
@@ -551,25 +556,21 @@ fn paste_direct(
 }
 
 fn send_return_key(enigo: &mut Enigo, key_type: AutoSubmitKey) -> Result<(), String> {
+    info!("Auto-submit using {:?}", key_type);
+
     match key_type {
         AutoSubmitKey::Enter => {
             enigo
-                .key(Key::Return, Direction::Press)
-                .map_err(|e| format!("Failed to press Return key: {}", e))?;
-            enigo
-                .key(Key::Return, Direction::Release)
-                .map_err(|e| format!("Failed to release Return key: {}", e))?;
+                .key(Key::Return, Direction::Click)
+                .map_err(|e| format!("Failed to click Return key: {}", e))?;
         }
         AutoSubmitKey::CtrlEnter => {
             enigo
                 .key(Key::Control, Direction::Press)
                 .map_err(|e| format!("Failed to press Control key: {}", e))?;
             enigo
-                .key(Key::Return, Direction::Press)
-                .map_err(|e| format!("Failed to press Return key: {}", e))?;
-            enigo
-                .key(Key::Return, Direction::Release)
-                .map_err(|e| format!("Failed to release Return key: {}", e))?;
+                .key(Key::Return, Direction::Click)
+                .map_err(|e| format!("Failed to click Return key: {}", e))?;
             enigo
                 .key(Key::Control, Direction::Release)
                 .map_err(|e| format!("Failed to release Control key: {}", e))?;
@@ -579,11 +580,8 @@ fn send_return_key(enigo: &mut Enigo, key_type: AutoSubmitKey) -> Result<(), Str
                 .key(Key::Meta, Direction::Press)
                 .map_err(|e| format!("Failed to press Meta/Cmd key: {}", e))?;
             enigo
-                .key(Key::Return, Direction::Press)
-                .map_err(|e| format!("Failed to press Return key: {}", e))?;
-            enigo
-                .key(Key::Return, Direction::Release)
-                .map_err(|e| format!("Failed to release Return key: {}", e))?;
+                .key(Key::Return, Direction::Click)
+                .map_err(|e| format!("Failed to click Return key: {}", e))?;
             enigo
                 .key(Key::Meta, Direction::Release)
                 .map_err(|e| format!("Failed to release Meta/Cmd key: {}", e))?;
@@ -659,7 +657,10 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
     }
 
     if should_send_auto_submit(settings.auto_submit, paste_method) {
-        std::thread::sleep(Duration::from_millis(50));
+        // Wait for the target app to fully process the pasted text before
+        // sending the submit key. Electron-based apps (Claude Desktop, etc.)
+        // need extra time to render the pasted content in their input field.
+        std::thread::sleep(Duration::from_millis(150));
         send_return_key(&mut enigo, settings.auto_submit_key)?;
     }
 

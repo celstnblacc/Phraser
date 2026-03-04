@@ -22,6 +22,58 @@ use tauri::Manager;
 
 pub struct ActiveActionState(pub Mutex<Option<u8>>);
 
+/// Stores the bundle identifier of the application that was frontmost when
+/// recording started.  Before pasting we re-activate this app so the text
+/// ends up in the correct window (important for Electron apps like Claude
+/// Desktop that can lose focus during the transcription pipeline).
+#[cfg(target_os = "macos")]
+static FRONTMOST_APP_BUNDLE_ID: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
+
+/// Capture the currently frontmost application (macOS only).
+#[cfg(target_os = "macos")]
+fn save_frontmost_app() {
+    let output = std::process::Command::new("osascript")
+        .args([
+            "-e",
+            r#"tell application "System Events" to get bundle identifier of first process whose frontmost is true"#,
+        ])
+        .output();
+
+    if let Ok(out) = output {
+        let bundle_id = String::from_utf8_lossy(&out.stdout).trim().to_string();
+        if !bundle_id.is_empty() {
+            debug!("Saved frontmost app: {}", bundle_id);
+            if let Ok(mut guard) = FRONTMOST_APP_BUNDLE_ID.lock() {
+                *guard = Some(bundle_id);
+            }
+        }
+    }
+}
+
+/// Re-activate the previously frontmost application before pasting (macOS only).
+/// This ensures the paste keystroke targets the correct app, even if the overlay
+/// or transcription pipeline accidentally brought Parler to the foreground.
+#[cfg(target_os = "macos")]
+fn restore_frontmost_app() {
+    let bundle_id = FRONTMOST_APP_BUNDLE_ID
+        .lock()
+        .ok()
+        .and_then(|mut guard| guard.take());
+
+    if let Some(bid) = bundle_id {
+        debug!("Restoring frontmost app: {}", bid);
+        let script = format!(
+            r#"tell application id "{}" to activate"#,
+            bid
+        );
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .output();
+        // Give the target app a moment to become frontmost
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+}
+
 /// Drop guard that notifies the [`TranscriptionCoordinator`] when the
 /// transcription pipeline finishes — whether it completes normally or panics.
 struct FinishGuard(AppHandle);
@@ -451,6 +503,12 @@ impl ShortcutAction for TranscribeAction {
         let start_time = Instant::now();
         debug!("TranscribeAction::start called for binding: {}", binding_id);
 
+        // Save the frontmost app so we can re-activate it before pasting.
+        // This must happen before any overlay or window operations that could
+        // change the frontmost app.
+        #[cfg(target_os = "macos")]
+        save_frontmost_app();
+
         // Load model in the background
         let tm = app.state::<Arc<TranscriptionManager>>();
         tm.initiate_model_load();
@@ -695,6 +753,13 @@ impl ShortcutAction for TranscribeAction {
                             let ah_clone = ah.clone();
                             let paste_time = Instant::now();
                             ah.run_on_main_thread(move || {
+                                // Re-activate the app that was frontmost when recording
+                                // started. This ensures the paste targets the correct
+                                // window (e.g. Claude Desktop) even if the overlay or
+                                // transcription pipeline shifted focus.
+                                #[cfg(target_os = "macos")]
+                                restore_frontmost_app();
+
                                 match utils::paste(final_text, ah_clone.clone()) {
                                     Ok(()) => debug!(
                                         "Text pasted successfully in {:?}",
