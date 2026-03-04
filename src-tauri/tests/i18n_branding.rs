@@ -38,7 +38,8 @@ fn all_translation_files_exist() {
 #[test]
 fn no_capitalized_parler_in_translations() {
     for path in translation_files() {
-        let content = fs::read_to_string(&path).unwrap();
+        let content = fs::read_to_string(&path)
+            .unwrap_or_else(|e| panic!("Failed to read {:?}: {}", path, e));
         assert!(
             !content.contains("\"Parler"),
             "{:?} still contains the old app name 'Parler'",

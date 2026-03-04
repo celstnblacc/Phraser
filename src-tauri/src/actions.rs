@@ -849,7 +849,7 @@ struct TestAction;
 impl ShortcutAction for TestAction {
     fn start(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str) {
         log::info!(
-            "Shortcut ID '{}': Started - {} (App: {})", // Changed "Pressed" to "Started" for consistency
+            "Shortcut ID '{}': Started - {} (App: {})",
             binding_id,
             shortcut_str,
             app.package_info().name
@@ -858,7 +858,7 @@ impl ShortcutAction for TestAction {
 
     fn stop(&self, app: &AppHandle, binding_id: &str, shortcut_str: &str) {
         log::info!(
-            "Shortcut ID '{}': Stopped - {} (App: {})", // Changed "Released" to "Stopped" for consistency
+            "Shortcut ID '{}': Stopped - {} (App: {})",
             binding_id,
             shortcut_str,
             app.package_info().name
