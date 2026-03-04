@@ -29,6 +29,14 @@ pub struct ActiveActionState(pub Mutex<Option<u8>>);
 #[cfg(target_os = "macos")]
 static FRONTMOST_APP_BUNDLE_ID: Lazy<Mutex<Option<String>>> = Lazy::new(|| Mutex::new(None));
 
+#[cfg(target_os = "macos")]
+fn is_parler_bundle_id(bundle_id: &str) -> bool {
+    matches!(
+        bundle_id,
+        "com.newblacc.parler" | "com.melvynx.parler" | "computer.handy"
+    )
+}
+
 /// Capture the currently frontmost application (macOS only).
 #[cfg(target_os = "macos")]
 fn save_frontmost_app() {
@@ -42,6 +50,13 @@ fn save_frontmost_app() {
     if let Ok(out) = output {
         let bundle_id = String::from_utf8_lossy(&out.stdout).trim().to_string();
         if !bundle_id.is_empty() {
+            if is_parler_bundle_id(&bundle_id) {
+                debug!(
+                    "Skipping frontmost app save because foreground app is Parler: {}",
+                    bundle_id
+                );
+                return;
+            }
             debug!("Saved frontmost app: {}", bundle_id);
             if let Ok(mut guard) = FRONTMOST_APP_BUNDLE_ID.lock() {
                 *guard = Some(bundle_id);
@@ -61,11 +76,15 @@ fn restore_frontmost_app() {
         .and_then(|mut guard| guard.take());
 
     if let Some(bid) = bundle_id {
+        if is_parler_bundle_id(&bid) {
+            debug!(
+                "Skipping frontmost app restore for Parler bundle id: {}",
+                bid
+            );
+            return;
+        }
         debug!("Restoring frontmost app: {}", bid);
-        let script = format!(
-            r#"tell application id "{}" to activate"#,
-            bid
-        );
+        let script = format!(r#"tell application id "{}" to activate"#, bid);
         let _ = std::process::Command::new("osascript")
             .args(["-e", &script])
             .output();

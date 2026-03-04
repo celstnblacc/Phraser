@@ -595,6 +595,76 @@ fn should_send_auto_submit(auto_submit: bool, paste_method: PasteMethod) -> bool
     auto_submit && paste_method != PasteMethod::None
 }
 
+/// Paste and optionally auto-submit using AppleScript's System Events.
+/// This is significantly more reliable for Electron apps (Claude Desktop,
+/// VS Code, Slack, etc.) because it goes through the macOS accessibility
+/// framework at a higher level than CGEvents / enigo.
+#[cfg(target_os = "macos")]
+fn paste_and_submit_via_applescript(
+    text: &str,
+    app_handle: &AppHandle,
+    auto_submit: bool,
+    auto_submit_key: AutoSubmitKey,
+) -> Result<(), String> {
+    let clipboard = app_handle.clipboard();
+    let clipboard_content = clipboard.read_text().unwrap_or_default();
+
+    // Write transcription to clipboard
+    clipboard
+        .write_text(text)
+        .map_err(|e| format!("Failed to write to clipboard: {}", e))?;
+
+    // Small delay so the pasteboard change propagates
+    std::thread::sleep(Duration::from_millis(50));
+
+    // Build an AppleScript that sends Cmd+V, waits, then optionally presses Return
+    let submit_part = if auto_submit {
+        let key_script = match auto_submit_key {
+            AutoSubmitKey::Enter => {
+                r#"delay 0.15
+                keystroke return"#
+            }
+            AutoSubmitKey::CtrlEnter => {
+                r#"delay 0.15
+                keystroke return using control down"#
+            }
+            AutoSubmitKey::CmdEnter => {
+                r#"delay 0.15
+                keystroke return using command down"#
+            }
+        };
+        key_script.to_string()
+    } else {
+        String::new()
+    };
+
+    let script = format!(
+        r#"tell application "System Events"
+            keystroke "v" using command down
+            {}
+        end tell"#,
+        submit_part
+    );
+
+    info!("Pasting via AppleScript (System Events)");
+
+    let output = Command::new("osascript")
+        .args(["-e", &script])
+        .output()
+        .map_err(|e| format!("Failed to run osascript: {}", e))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(format!("AppleScript paste failed: {}", stderr));
+    }
+
+    // Wait for the target app to fully consume the clipboard, then restore
+    std::thread::sleep(Duration::from_millis(300));
+    let _ = clipboard.write_text(&clipboard_content);
+
+    Ok(())
+}
+
 pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
     let settings = get_settings(&app_handle);
     let paste_method = settings.paste_method;
@@ -611,6 +681,26 @@ pub fn paste(text: String, app_handle: AppHandle) -> Result<(), String> {
         "Using paste method: {:?}, delay: {}ms",
         paste_method, paste_delay_ms
     );
+
+    // On macOS, use AppleScript for Cmd+V pastes — it is far more reliable
+    // for Electron apps (Claude Desktop, etc.) than CGEvent-based input.
+    #[cfg(target_os = "macos")]
+    if paste_method == PasteMethod::CtrlV {
+        let result = paste_and_submit_via_applescript(
+            &text,
+            &app_handle,
+            settings.auto_submit,
+            settings.auto_submit_key,
+        );
+
+        // After pasting, optionally copy to clipboard based on settings
+        if settings.clipboard_handling == ClipboardHandling::CopyToClipboard {
+            let clipboard = app_handle.clipboard();
+            let _ = clipboard.write_text(&text);
+        }
+
+        return result;
+    }
 
     // Get the managed Enigo instance
     let enigo_state = app_handle
