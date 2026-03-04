@@ -54,7 +54,10 @@ pub struct HistoryManager {
 }
 
 fn is_valid_audio_file_name(file_name: &str) -> bool {
-    !file_name.contains("..") && !file_name.contains('/') && !file_name.contains('\\')
+    !file_name.is_empty()
+        && !file_name.contains("..")
+        && !file_name.contains('/')
+        && !file_name.contains('\\')
 }
 
 fn get_audio_file_path_from_dir(recordings_dir: &std::path::Path, file_name: &str) -> Result<PathBuf> {
@@ -633,6 +636,11 @@ mod tests {
     fn validate_audio_file_name_rejects_path_separators() {
         assert!(!is_valid_audio_file_name("folder/file.wav"));
         assert!(!is_valid_audio_file_name("folder\\file.wav"));
+    }
+
+    #[test]
+    fn validate_audio_file_name_rejects_empty_name() {
+        assert!(!is_valid_audio_file_name(""));
     }
 
     #[test]
