@@ -51,7 +51,7 @@ jobs:
     runs-on: ${{ inputs.platform }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
           repository: ${{ inputs.repository }}
           ref: ${{ inputs.ref }}
@@ -79,24 +79,24 @@ jobs:
 
       - name: Setup Bun (standard)
         if: ${{ !(contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')) }}
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
 
       # Bun does not fully support Windows ARM64 yet, so we pin the baseline build.
       # See https://github.com/oven-sh/bun/issues/9824 for details.
       - name: Setup Bun (Windows ARM64 baseline)
         if: ${{ contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64') }}
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2
         with:
           bun-download-url: "https://github.com/oven-sh/bun/releases/latest/download/bun-windows-x64-baseline.zip"
 
       - name: install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7 # stable
         with:
           # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
           targets: ${{ contains(inputs.platform, 'macos') && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
       - name: Rust cache
-        uses: swatinem/rust-cache@v2
+        uses: swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2
         with:
           workspaces: "./src-tauri -> target"
           key: ${{ inputs.platform }}-${{ inputs.target }}
@@ -133,7 +133,7 @@ jobs:
 
       - name: Install Vulkan SDK (Windows x64)
         if: contains(inputs.platform, 'windows') && !contains(inputs.target, 'aarch64')
-        uses: humbletim/install-vulkan-sdk@v1.2
+        uses: humbletim/install-vulkan-sdk@30ba978f977e81b72d091fc8888feb1fb26f9aff # v1.2
         with:
           version: 1.4.309.0
           cache: true
@@ -173,7 +173,7 @@ jobs:
 
       - name: Build Vulkan SDK headers and libs (Windows ARM64)
         if: contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')
-        uses: humbletim/setup-vulkan-sdk@v1.2.1
+        uses: humbletim/setup-vulkan-sdk@c25f41106918cde0bf347e6f201277392b3a9e9d # v1.2.1
         with:
           vulkan-query-version: 1.4.309.0
           vulkan-components: Vulkan-Headers, Vulkan-Loader
@@ -194,7 +194,7 @@ jobs:
 
       - name: Prepare Vulkan SDK for Ubuntu ARM64
         if: contains(inputs.platform, 'ubuntu') && contains(inputs.platform, 'arm')
-        uses: jakoch/install-vulkan-sdk-action@v1
+        uses: jakoch/install-vulkan-sdk-action@06218f81a3cbd7dce502fdc666c8db2af725b442 # v1
         with:
           vulkan_version: 1.4.335.0
           cache: true
@@ -261,10 +261,10 @@ jobs:
           if [[ -n "${{ inputs.asset-prefix }}" ]]; then
             patched_platform="${{ inputs.asset-prefix }}_${patched_platform}"
           fi
-          echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
+          echo "platform=${patched_platform}" >> "$GITHUB_OUTPUT"
 
       - name: Build with Tauri
-        uses: tauri-apps/tauri-action@v0
+        uses: tauri-apps/tauri-action@73fb865345c54760d875b94642314f8c0c894afa # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           APPLE_ID: ${{ inputs.sign-binaries && secrets.APPLE_ID || '' }}
@@ -290,7 +290,7 @@ jobs:
 
       - name: Upload artifacts (macOS)
         if: inputs.upload-artifacts && contains(inputs.platform, 'macos')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
           path: |
@@ -357,7 +357,7 @@ jobs:
 
       - name: Upload artifacts (Linux)
         if: inputs.upload-artifacts && contains(inputs.platform, 'ubuntu')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.platform }}-${{ inputs.target }}
           path: |
@@ -368,7 +368,7 @@ jobs:
 
       - name: Upload artifacts (Windows)
         if: inputs.upload-artifacts && contains(inputs.platform, 'windows')
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
           # Default Windows builds place bundles under release/, but cross-compiles (ARM64) nest under target/<triple>/release.

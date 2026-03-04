@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Configuration
-const LOCALES_DIR = path.join(__dirname, "..", "src", "i18n", "locales");
+const LOCALES_DIR = path.resolve(__dirname, "..", "src", "i18n", "locales");
 const REFERENCE_LANG = "en";
 
 type TranslationData = Record<string, unknown>;
@@ -19,7 +19,12 @@ interface ValidationResult {
 function getLanguages(): string[] {
   const entries = fs.readdirSync(LOCALES_DIR, { withFileTypes: true });
   return entries
-    .filter((entry) => entry.isDirectory() && entry.name !== REFERENCE_LANG)
+    .filter(
+      (entry) =>
+        entry.isDirectory() &&
+        !entry.isSymbolicLink() &&
+        entry.name !== REFERENCE_LANG,
+    )
     .map((entry) => entry.name)
     .sort();
 }
@@ -76,8 +81,21 @@ function hasKeyPath(obj: TranslationData, keyPath: string[]): boolean {
   return true;
 }
 
+function resolveInsideLocales(...segments: string[]): string {
+  const resolvedPath = path.resolve(LOCALES_DIR, ...segments);
+  const isInside =
+    resolvedPath === LOCALES_DIR ||
+    resolvedPath.startsWith(`${LOCALES_DIR}${path.sep}`);
+
+  if (!isInside) {
+    throw new Error(`Resolved path escapes locales directory: ${resolvedPath}`);
+  }
+
+  return resolvedPath;
+}
+
 function loadTranslationFile(lang: string): TranslationData | null {
-  const filePath = path.join(LOCALES_DIR, lang, "translation.json");
+  const filePath = resolveInsideLocales(lang, "translation.json");
 
   try {
     const content = fs.readFileSync(filePath, "utf8");

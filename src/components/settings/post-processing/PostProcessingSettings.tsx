@@ -12,6 +12,22 @@ import { Button } from "../../ui/Button";
 import { Input } from "../../ui/Input";
 import { useSettings } from "../../../hooks/useSettings";
 
+function renderPromptTip(tip: string): React.ReactNode {
+  const match = tip.match(/^(.*)<code>(.*)<\/code>(.*)$/);
+  if (!match) {
+    return tip;
+  }
+
+  const [, prefix, codeText, suffix] = match;
+  return (
+    <>
+      {prefix}
+      <code>{codeText}</code>
+      {suffix}
+    </>
+  );
+}
+
 const PostProcessingActionsComponent: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, refreshSettings } = useSettings();
@@ -67,18 +83,30 @@ const PostProcessingActionsComponent: React.FC = () => {
         savedModelId = id;
       }
     }
-    setEditingAction({ key: action.key, name: action.name, prompt: action.prompt, savedModelId, isNew: false });
+    setEditingAction({
+      key: action.key,
+      name: action.name,
+      prompt: action.prompt,
+      savedModelId,
+      isNew: false,
+    });
   };
 
   const handleSave = async () => {
-    if (!editingAction || !editingAction.name.trim() || !editingAction.prompt.trim())
+    if (
+      !editingAction ||
+      !editingAction.name.trim() ||
+      !editingAction.prompt.trim()
+    )
       return;
 
     try {
       let model: string | null = null;
       let providerId: string | null = null;
       if (editingAction.savedModelId) {
-        const saved = savedModels.find((m) => m.id === editingAction.savedModelId);
+        const saved = savedModels.find(
+          (m) => m.id === editingAction.savedModelId,
+        );
         if (saved) {
           model = saved.model_id;
           providerId = saved.provider_id;
@@ -147,7 +175,8 @@ const PostProcessingActionsComponent: React.FC = () => {
                     {action.provider_id && action.model && (
                       <span className="text-xs text-mid-gray/60 ml-2">
                         {savedModels.find(
-                          (m) => m.id === `${action.provider_id}:${action.model}`,
+                          (m) =>
+                            m.id === `${action.provider_id}:${action.model}`,
                         )?.label || action.model}
                       </span>
                     )}
@@ -216,12 +245,11 @@ const PostProcessingActionsComponent: React.FC = () => {
                   "settings.postProcessing.actions.promptPlaceholder",
                 )}
               />
-              <p
-                className="text-xs text-mid-gray/70"
-                dangerouslySetInnerHTML={{
-                  __html: t("settings.postProcessing.actions.promptTip"),
-                }}
-              />
+              <p className="text-xs text-mid-gray/70">
+                {renderPromptTip(
+                  t("settings.postProcessing.actions.promptTip"),
+                )}
+              </p>
             </div>
 
             <div className="space-y-1 flex flex-col">
@@ -278,11 +306,7 @@ const PostProcessingActionsComponent: React.FC = () => {
         )}
 
         {!editingAction && actions.length < 9 && (
-          <Button
-            onClick={handleStartCreate}
-            variant="primary"
-            size="md"
-          >
+          <Button onClick={handleStartCreate} variant="primary" size="md">
             {t("settings.postProcessing.actions.addAction")}
           </Button>
         )}
@@ -297,9 +321,7 @@ const PostProcessingActionsComponent: React.FC = () => {
   );
 };
 
-export const PostProcessingActions = React.memo(
-  PostProcessingActionsComponent,
-);
+export const PostProcessingActions = React.memo(PostProcessingActionsComponent);
 PostProcessingActions.displayName = "PostProcessingActions";
 
 export const PostProcessingSettings: React.FC = () => {

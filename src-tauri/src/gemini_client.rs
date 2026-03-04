@@ -161,7 +161,7 @@ pub async fn transcribe_audio(api_key: &str, model: &str, audio_samples: &[f32])
         .and_then(|p| p.text)
         .unwrap_or_default();
 
-    debug!("Gemini transcription result: {}", text);
+    debug!("Gemini transcription completed, output length: {}", text.len());
     Ok(text.trim().to_string())
 }
 
