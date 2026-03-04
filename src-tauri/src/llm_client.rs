@@ -51,9 +51,7 @@ struct ChatMessageResponse {
 fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<HeaderMap, String> {
     let mut headers = HeaderMap::new();
 
-    // Common headers
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    // Upstream project references kept for API provider compatibility
     headers.insert(
         REFERER,
         HeaderValue::from_static("https://github.com/newblacc/Phraser"),

@@ -7,7 +7,7 @@ use std::path::PathBuf;
 fn locales_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
-        .unwrap()
+        .expect("src-tauri must be a subdirectory of the project root")
         .join("src/i18n/locales")
 }
 
@@ -60,10 +60,10 @@ fn phraser_present_in_english_translation() {
 #[test]
 fn french_parler_lowercase_is_allowed() {
     let path = locales_dir().join("fr/translation.json");
-    if let Ok(content) = fs::read_to_string(&path) {
-        assert!(
-            !content.contains("\"Parler"),
-            "French translation should not contain the old app name 'Parler' (capitalized)"
-        );
-    }
+    let content = fs::read_to_string(&path)
+        .expect("French translation file must exist at fr/translation.json");
+    assert!(
+        !content.contains("\"Parler"),
+        "French translation should not contain the old app name 'Parler' (capitalized)"
+    );
 }

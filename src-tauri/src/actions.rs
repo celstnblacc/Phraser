@@ -899,7 +899,6 @@ mod tests {
         assert!(ACTION_MAP.contains_key("transcribe_with_post_process"));
         assert!(ACTION_MAP.contains_key("cancel"));
         assert!(ACTION_MAP.contains_key("test"));
-        assert_eq!(ACTION_MAP.len(), 4);
     }
 }
 

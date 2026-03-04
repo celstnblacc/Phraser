@@ -3,13 +3,17 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 fn crate_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
 }
 
 fn project_root() -> PathBuf {
-    crate_dir().parent().unwrap().to_path_buf()
+    crate_dir()
+        .parent()
+        .expect("src-tauri must be a subdirectory of the project root")
+        .to_path_buf()
 }
 
 fn read_json(path: &Path) -> serde_json::Value {
@@ -18,29 +22,40 @@ fn read_json(path: &Path) -> serde_json::Value {
     serde_json::from_str(&content).unwrap_or_else(|e| panic!("Failed to parse {:?}: {}", path, e))
 }
 
+fn tauri_conf() -> &'static serde_json::Value {
+    static CONF: OnceLock<serde_json::Value> = OnceLock::new();
+    CONF.get_or_init(|| read_json(&crate_dir().join("tauri.conf.json")))
+}
+
+fn tauri_dev_conf() -> &'static serde_json::Value {
+    static CONF: OnceLock<serde_json::Value> = OnceLock::new();
+    CONF.get_or_init(|| read_json(&crate_dir().join("tauri.dev.conf.json")))
+}
+
 #[test]
 fn tauri_conf_product_name_is_phraser() {
-    let conf = read_json(&crate_dir().join("tauri.conf.json"));
-    assert_eq!(conf["productName"].as_str().unwrap(), "Phraser");
+    assert_eq!(tauri_conf()["productName"].as_str().unwrap(), "Phraser");
 }
 
 #[test]
 fn tauri_conf_identifier_is_phraser() {
-    let conf = read_json(&crate_dir().join("tauri.conf.json"));
-    assert_eq!(conf["identifier"].as_str().unwrap(), "com.newblacc.phraser");
+    assert_eq!(
+        tauri_conf()["identifier"].as_str().unwrap(),
+        "com.newblacc.phraser"
+    );
 }
 
 #[test]
 fn tauri_conf_window_title_is_phraser() {
-    let conf = read_json(&crate_dir().join("tauri.conf.json"));
-    let title = conf["app"]["windows"][0]["title"].as_str().unwrap();
+    let title = tauri_conf()["app"]["windows"][0]["title"].as_str().unwrap();
     assert_eq!(title, "Phraser");
 }
 
 #[test]
 fn tauri_conf_updater_endpoint_uses_phraser() {
-    let conf = read_json(&crate_dir().join("tauri.conf.json"));
-    let endpoint = conf["plugins"]["updater"]["endpoints"][0].as_str().unwrap();
+    let endpoint = tauri_conf()["plugins"]["updater"]["endpoints"][0]
+        .as_str()
+        .unwrap();
     assert!(
         endpoint.contains("/Phraser/"),
         "Updater endpoint should reference Phraser repo, got: {}",
@@ -50,15 +65,16 @@ fn tauri_conf_updater_endpoint_uses_phraser() {
 
 #[test]
 fn tauri_dev_conf_product_name_is_phraser_dev() {
-    let conf = read_json(&crate_dir().join("tauri.dev.conf.json"));
-    assert_eq!(conf["productName"].as_str().unwrap(), "PhraserDev");
+    assert_eq!(
+        tauri_dev_conf()["productName"].as_str().unwrap(),
+        "PhraserDev"
+    );
 }
 
 #[test]
 fn tauri_dev_conf_identifier_is_phraser_dev() {
-    let conf = read_json(&crate_dir().join("tauri.dev.conf.json"));
     assert_eq!(
-        conf["identifier"].as_str().unwrap(),
+        tauri_dev_conf()["identifier"].as_str().unwrap(),
         "com.newblacc.phraser.dev"
     );
 }
@@ -124,5 +140,15 @@ fn no_stale_parler_in_tauri_dev_conf() {
     assert!(
         !content.contains("com.newblacc.parler"),
         "tauri.dev.conf.json should not contain old bundle id"
+    );
+}
+
+#[test]
+fn log_file_name_is_phraser() {
+    let content =
+        fs::read_to_string(crate_dir().join("src/lib.rs")).expect("Failed to read lib.rs");
+    assert!(
+        content.contains("file_name: Some(\"phraser\""),
+        "lib.rs log file name should be 'phraser'"
     );
 }

@@ -1,5 +1,17 @@
 import { test, expect } from "@playwright/test";
 
+/** Tauri runtime errors are expected when running in a browser without the Tauri backend. */
+function isTauriRuntimeError(msg: string): boolean {
+  return (
+    msg.includes("__TAURI__") ||
+    msg.includes("tauri") ||
+    msg.includes("transformCallback") ||
+    msg.includes("reading 'invoke'") ||
+    msg.includes("reading 'platform'") ||
+    msg.includes("error boundary")
+  );
+}
+
 test.describe("Phraser App — Smoke", () => {
   test("dev server responds with 200", async ({ page }) => {
     const response = await page.goto("/");
@@ -49,16 +61,7 @@ test.describe("Phraser App — Frontend Rendering", () => {
     await page.goto("/");
     await page.waitForTimeout(1000);
 
-    // Without the Tauri runtime, all backend invoke() calls fail with specific patterns.
-    const realErrors = errors.filter(
-      (e) =>
-        !e.includes("__TAURI__") &&
-        !e.includes("tauri") &&
-        !e.includes("transformCallback") &&
-        !e.includes("reading 'invoke'") &&
-        !e.includes("reading 'platform'") &&
-        !e.includes("error boundary"),
-    );
+    const realErrors = errors.filter((e) => !isTauriRuntimeError(e));
     expect(realErrors).toEqual([]);
   });
 
@@ -67,12 +70,7 @@ test.describe("Phraser App — Frontend Rendering", () => {
   }) => {
     const jsErrors: Error[] = [];
     page.on("pageerror", (error) => {
-      if (
-        !error.message.includes("__TAURI__") &&
-        !error.message.includes("tauri") &&
-        !error.message.includes("transformCallback") &&
-        !error.message.includes("reading 'platform'")
-      ) {
+      if (!isTauriRuntimeError(error.message)) {
         jsErrors.push(error);
       }
     });

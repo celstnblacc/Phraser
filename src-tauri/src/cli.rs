@@ -34,13 +34,13 @@ mod tests {
     use clap::CommandFactory;
 
     #[test]
-    fn cli_command_name_is_phraser() {
+    fn command_name_is_phraser() {
         let cmd = CliArgs::command();
         assert_eq!(cmd.get_name(), "phraser");
     }
 
     #[test]
-    fn cli_about_contains_phraser() {
+    fn about_contains_phraser() {
         let cmd = CliArgs::command();
         let about = cmd.get_about().map(|a| a.to_string()).unwrap_or_default();
         assert!(
@@ -51,7 +51,7 @@ mod tests {
     }
 
     #[test]
-    fn cli_default_has_all_flags_false() {
+    fn default_has_all_flags_false() {
         let args = CliArgs::default();
         assert!(!args.start_hidden);
         assert!(!args.no_tray);
@@ -62,14 +62,14 @@ mod tests {
     }
 
     #[test]
-    fn cli_parses_toggle_transcription() {
+    fn parses_toggle_transcription() {
         let args = CliArgs::parse_from(["phraser", "--toggle-transcription"]);
         assert!(args.toggle_transcription);
         assert!(!args.toggle_post_process);
     }
 
     #[test]
-    fn cli_parses_multiple_flags() {
+    fn parses_multiple_flags() {
         let args = CliArgs::parse_from(["phraser", "--start-hidden", "--no-tray", "--debug"]);
         assert!(args.start_hidden);
         assert!(args.no_tray);
