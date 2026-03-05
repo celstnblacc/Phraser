@@ -19,6 +19,7 @@ pub const LANG_TRADITIONAL_CHINESE: &str = "zh-Hant";
 /// transcription. Any rename must happen here only.
 pub const PROVIDER_ID_ANTHROPIC: &str = "anthropic";
 pub const PROVIDER_ID_GEMINI: &str = "gemini";
+#[allow(dead_code)]
 pub const PROVIDER_ID_OPENAI: &str = "openai";
 #[allow(dead_code)]
 pub const PROVIDER_ID_OPENROUTER: &str = "openrouter";
