@@ -46,12 +46,14 @@ pub fn handle_shortcut_event(
         return;
     }
 
-    // Action bindings (1-9): only fires when recording and key is pressed
+    // Action bindings (Ctrl+1…9): always delegate to start_with_action.
+    // The coordinator handles both cases: idle → start recording with action
+    // pre-selected; recording → stop and apply the action.
     if is_action_binding(binding_id) {
         if is_pressed {
             if let Some(key) = parse_action_key(binding_id) {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {
-                    coordinator.select_action(key);
+                    coordinator.start_with_action(key, hotkey_string);
                 }
             }
         }

@@ -729,8 +729,7 @@ impl ShortcutAction for TranscribeAction {
         if recording_started {
             // Dynamically register the cancel shortcut in a separate task to avoid deadlock
             shortcut::register_cancel_shortcut(app);
-            // Register action shortcuts (digit keys 1-9) for configured actions
-            shortcut::register_action_shortcuts(app);
+            // Action shortcuts (Ctrl+1…9) are always-on global shortcuts registered at startup.
         }
 
         debug!(
@@ -741,7 +740,7 @@ impl ShortcutAction for TranscribeAction {
 
     fn stop(&self, app: &AppHandle, binding_id: &str, _shortcut_str: &str) {
         shortcut::unregister_cancel_shortcut(app);
-        shortcut::unregister_action_shortcuts(app);
+        // Action shortcuts stay registered (always-on); no unregister needed here.
 
         let stop_time = Instant::now();
         debug!("TranscribeAction::stop called for binding: {}", binding_id);

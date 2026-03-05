@@ -26,6 +26,12 @@ enum Command {
     SelectAction {
         key: u8,
     },
+    /// Start recording with action N pre-selected (or stop if already recording this action).
+    /// Used by action shortcuts (Ctrl+1…9) pressed while the app is idle.
+    StartWithAction {
+        key: u8,
+        hotkey_string: String,
+    },
 }
 
 /// Pipeline lifecycle, owned exclusively by the coordinator thread.
@@ -154,6 +160,49 @@ impl TranscriptionCoordinator {
                                 debug!("Action selection ignored: not in recording state");
                             }
                         }
+                        Command::StartWithAction { key, hotkey_string } => {
+                            match stage {
+                                Stage::Idle => {
+                                    // Start recording with the action pre-selected using the
+                                    // post-process binding so the pipeline applies the action.
+                                    start(
+                                        &app,
+                                        &mut stage,
+                                        "transcribe_with_post_process",
+                                        &hotkey_string,
+                                    );
+                                    // Apply the action selection now that we're in Recording state.
+                                    if let Stage::Recording {
+                                        ref mut selected_action,
+                                        ..
+                                    } = stage
+                                    {
+                                        *selected_action = Some(key);
+                                        let settings = get_settings(&app);
+                                        if let Some(action) = settings
+                                            .post_process_actions
+                                            .iter()
+                                            .find(|a| a.key == key)
+                                        {
+                                            emit_action_selected(&app, key, &action.name);
+                                        }
+                                        debug!(
+                                            "Started recording with action {} pre-selected",
+                                            key
+                                        );
+                                    }
+                                }
+                                Stage::Recording { ref binding_id, .. } => {
+                                    // Already recording — stop and let the pipeline apply the
+                                    // pre-selected action that was set when recording started.
+                                    let bid = binding_id.clone();
+                                    stop(&app, &mut stage, &bid, &hotkey_string);
+                                }
+                                Stage::Processing => {
+                                    debug!("StartWithAction ignored: pipeline busy");
+                                }
+                            }
+                        }
                     }
                 }
                 debug!("Transcription coordinator exited");
@@ -209,6 +258,20 @@ impl TranscriptionCoordinator {
 
     pub fn select_action(&self, key: u8) {
         if self.tx.send(Command::SelectAction { key }).is_err() {
+            warn!("Transcription coordinator channel closed");
+        }
+    }
+
+    /// Start recording with action `key` pre-selected, or stop if already recording.
+    pub fn start_with_action(&self, key: u8, hotkey_string: &str) {
+        if self
+            .tx
+            .send(Command::StartWithAction {
+                key,
+                hotkey_string: hotkey_string.to_string(),
+            })
+            .is_err()
+        {
             warn!("Transcription coordinator channel closed");
         }
     }

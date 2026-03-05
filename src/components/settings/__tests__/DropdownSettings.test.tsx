@@ -231,10 +231,11 @@ describe("ClipboardHandlingSetting", () => {
     // Index 0 is the tooltip SVG (role="button"); index 1 is the dropdown trigger
     const buttons = screen.getAllByRole("button");
     await userEvent.click(buttons[1]);
-    const option = screen.getByText(
+    // Both trigger and list item show the same text; click the last (list item)
+    const opts = screen.getAllByText(
       "settings.advanced.clipboardHandling.options.dontModify",
     );
-    await userEvent.click(option);
+    await userEvent.click(opts[opts.length - 1]);
     expect(settings.updateSetting).toHaveBeenCalledWith(
       "clipboard_handling",
       "dont_modify",
@@ -246,9 +247,7 @@ describe("ClipboardHandlingSetting", () => {
 
 describe("PasteMethodSetting", () => {
   it("renders the paste method title", () => {
-    mockUseSettings.mockReturnValue(
-      makeSettings({ paste_method: "ctrl_v" }),
-    );
+    mockUseSettings.mockReturnValue(makeSettings({ paste_method: "ctrl_v" }));
     render(<PasteMethodSetting />);
     expect(
       screen.getByText("settings.advanced.pasteMethod.title"),

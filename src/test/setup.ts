@@ -9,6 +9,15 @@ vi.mock("@/bindings", () => ({
     getAvailableOutputDevices: vi.fn(),
     getHistoryEntries: vi.fn(),
     isLaptop: vi.fn().mockResolvedValue({ status: "ok", data: false }),
+    addPostProcessAction: vi
+      .fn()
+      .mockResolvedValue({ status: "ok", data: null }),
+    updatePostProcessAction: vi
+      .fn()
+      .mockResolvedValue({ status: "ok", data: null }),
+    deletePostProcessAction: vi
+      .fn()
+      .mockResolvedValue({ status: "ok", data: null }),
   },
 }));
 

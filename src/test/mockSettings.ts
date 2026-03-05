@@ -1,8 +1,17 @@
 import { vi } from "vitest";
 import type { useSettings } from "@/hooks/useSettings";
-import type { AppSettings, AudioDevice } from "@/bindings";
+import type { AppSettings, AudioDevice, PostProcessAction } from "@/bindings";
 
 type UseSettingsReturn = ReturnType<typeof useSettings>;
+
+export const DEFAULT_ACTIONS: PostProcessAction[] = [
+  { key: 1, name: "Summarize", prompt: "Summarize the following text:" },
+  {
+    key: 2,
+    name: "Fix Grammar",
+    prompt: "Fix the grammar of the following text:",
+  },
+];
 
 export const DEFAULT_MIC: AudioDevice = {
   index: "default",

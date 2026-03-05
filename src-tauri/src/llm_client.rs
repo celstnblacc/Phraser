@@ -349,6 +349,7 @@ mod tests {
             label: id.to_string(),
             base_url: base_url.to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: None,
             supports_structured_output: false,
         }

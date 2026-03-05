@@ -220,6 +220,7 @@
         "noModels": "No processing models saved yet. Add one to use in your actions.",
         "addModel": "Add Processing Model",
         "provider": "Provider",
+        "baseUrl": "Server URL",
         "apiKey": "API Key",
         "apiKeyPlaceholder": "Enter API key",
         "model": "Model",

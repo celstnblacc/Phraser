@@ -30,6 +30,8 @@ pub const PROVIDER_ID_CEREBRAS: &str = "cerebras";
 #[allow(dead_code)]
 pub const PROVIDER_ID_ZAI: &str = "zai";
 #[allow(dead_code)]
+pub const PROVIDER_ID_OLLAMA: &str = "ollama";
+#[allow(dead_code)]
 pub const PROVIDER_ID_CUSTOM: &str = "custom";
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
@@ -141,6 +143,8 @@ pub struct PostProcessProvider {
     pub base_url: String,
     #[serde(default)]
     pub allow_base_url_edit: bool,
+    #[serde(default = "default_true")]
+    pub requires_api_key: bool,
     #[serde(default)]
     pub models_endpoint: Option<String>,
     #[serde(default)]
@@ -504,6 +508,10 @@ fn default_post_process_provider_id() -> String {
     "openai".to_string()
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn default_post_process_providers() -> Vec<PostProcessProvider> {
     let mut providers = vec![
         PostProcessProvider {
@@ -511,6 +519,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "OpenAI".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -519,6 +528,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Z.AI".to_string(),
             base_url: "https://api.z.ai/api/paas/v4".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -527,6 +537,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "OpenRouter".to_string(),
             base_url: "https://openrouter.ai/api/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -535,6 +546,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Anthropic".to_string(),
             base_url: "https://api.anthropic.com/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: false,
         },
@@ -543,6 +555,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Groq".to_string(),
             base_url: "https://api.groq.com/openai/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: false,
         },
@@ -551,6 +564,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Cerebras".to_string(),
             base_url: "https://api.cerebras.ai/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -567,6 +581,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Apple Intelligence".to_string(),
             base_url: "apple-intelligence://local".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: false,
             models_endpoint: None,
             supports_structured_output: true,
         });
@@ -577,7 +592,18 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
         label: "Gemini".to_string(),
         base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
         allow_base_url_edit: false,
+        requires_api_key: true,
         models_endpoint: None,
+        supports_structured_output: false,
+    });
+
+    providers.push(PostProcessProvider {
+        id: "ollama".to_string(),
+        label: "Ollama".to_string(),
+        base_url: "http://localhost:11434/v1".to_string(),
+        allow_base_url_edit: true,
+        requires_api_key: false,
+        models_endpoint: Some("/models".to_string()),
         supports_structured_output: false,
     });
 
@@ -587,6 +613,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
         label: "Custom".to_string(),
         base_url: "http://localhost:11434/v1".to_string(),
         allow_base_url_edit: true,
+        requires_api_key: false,
         models_endpoint: Some("/models".to_string()),
         supports_structured_output: false,
     });
@@ -650,15 +677,13 @@ fn ensure_post_process_defaults(settings: &mut AppSettings) -> bool {
             .find(|p| p.id == provider.id)
         {
             Some(existing) => {
-                // Sync supports_structured_output field for existing providers (migration)
+                // Sync immutable fields from the canonical default (migration).
                 if existing.supports_structured_output != provider.supports_structured_output {
-                    debug!(
-                        "Updating supports_structured_output for provider '{}' from {} to {}",
-                        provider.id,
-                        existing.supports_structured_output,
-                        provider.supports_structured_output
-                    );
                     existing.supports_structured_output = provider.supports_structured_output;
+                    changed = true;
+                }
+                if existing.requires_api_key != provider.requires_api_key {
+                    existing.requires_api_key = provider.requires_api_key;
                     changed = true;
                 }
             }
