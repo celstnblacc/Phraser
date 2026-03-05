@@ -301,7 +301,13 @@ fn stop(app: &AppHandle, stage: &mut Stage, binding_id: &str, hotkey_string: &st
     } = &stage
     {
         if let Some(state) = app.try_state::<ActiveActionState>() {
-            *state.0.lock().unwrap() = *selected_action;
+            match state.0.lock() {
+                Ok(mut guard) => *guard = *selected_action,
+                Err(poisoned) => {
+                    error!("ActiveActionState mutex poisoned, recovering");
+                    *poisoned.into_inner() = *selected_action;
+                }
+            }
         }
     }
 

@@ -1,6 +1,8 @@
 use crate::audio_toolkit::{apply_custom_words, filter_transcription_output};
 use crate::managers::model::{EngineType, ModelManager};
-use crate::settings::{get_settings, ModelUnloadTimeout};
+use crate::settings::{
+    get_settings, ModelUnloadTimeout, LANG_SIMPLIFIED_CHINESE, LANG_TRADITIONAL_CHINESE,
+};
 use anyhow::Result;
 use log::{debug, error, info, warn};
 use serde::Serialize;
@@ -539,8 +541,9 @@ impl TranscriptionManager {
                             let whisper_language = if settings.selected_language == "auto" {
                                 None
                             } else {
-                                let normalized = if settings.selected_language == "zh-Hans"
-                                    || settings.selected_language == "zh-Hant"
+                                let normalized = if settings.selected_language
+                                    == LANG_SIMPLIFIED_CHINESE
+                                    || settings.selected_language == LANG_TRADITIONAL_CHINESE
                                 {
                                     "zh".to_string()
                                 } else {

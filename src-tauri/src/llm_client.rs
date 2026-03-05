@@ -3,6 +3,11 @@ use log::debug;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::time::Duration;
+
+const REQUEST_TIMEOUT_SECS: u64 = 30;
+const PHRASER_USER_AGENT: &str = "Phraser/1.0 (+https://github.com/newblacc/Phraser)";
+const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 #[derive(Debug, Serialize)]
 struct ChatMessage {
@@ -56,10 +61,7 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
         REFERER,
         HeaderValue::from_static("https://github.com/newblacc/Phraser"),
     );
-    headers.insert(
-        USER_AGENT,
-        HeaderValue::from_static("Phraser/1.0 (+https://github.com/newblacc/Phraser)"),
-    );
+    headers.insert(USER_AGENT, HeaderValue::from_static(PHRASER_USER_AGENT));
     headers.insert("X-Title", HeaderValue::from_static("Phraser"));
 
     // Provider-specific auth headers
@@ -70,7 +72,10 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
                 HeaderValue::from_str(api_key)
                     .map_err(|e| format!("Invalid API key header value: {}", e))?,
             );
-            headers.insert("anthropic-version", HeaderValue::from_static("2023-06-01"));
+            headers.insert(
+                "anthropic-version",
+                HeaderValue::from_static(ANTHROPIC_API_VERSION),
+            );
         } else {
             headers.insert(
                 AUTHORIZATION,
@@ -83,10 +88,15 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
     Ok(headers)
 }
 
+/// Create a base HTTP client builder with shared configuration (timeout, etc.)
+fn create_base_client() -> reqwest::ClientBuilder {
+    reqwest::Client::builder().timeout(Duration::from_secs(REQUEST_TIMEOUT_SECS))
+}
+
 /// Create an HTTP client with provider-specific headers
 fn create_client(provider: &PostProcessProvider, api_key: &str) -> Result<reqwest::Client, String> {
     let headers = build_headers(provider, api_key)?;
-    reqwest::Client::builder()
+    create_base_client()
         .default_headers(headers)
         .build()
         .map_err(|e| format!("Failed to build HTTP client: {}", e))
@@ -102,6 +112,27 @@ pub async fn send_chat_completion(
     prompt: String,
 ) -> Result<Option<String>, String> {
     send_chat_completion_with_schema(provider, api_key, model, prompt, None, None).await
+}
+
+/// Send a chat completion with a system prompt but no structured output schema.
+/// Use this instead of `send_chat_completion_with_schema(..., None)` to make
+/// intent explicit at the call site.
+pub async fn send_chat_completion_with_system(
+    provider: &PostProcessProvider,
+    api_key: String,
+    model: &str,
+    user_content: String,
+    system_prompt: String,
+) -> Result<Option<String>, String> {
+    send_chat_completion_with_schema(
+        provider,
+        api_key,
+        model,
+        user_content,
+        Some(system_prompt),
+        None,
+    )
+    .await
 }
 
 /// Send a chat completion request with structured output support
@@ -193,6 +224,55 @@ pub async fn send_chat_completion_with_schema(
         .choices
         .first()
         .and_then(|choice| choice.message.content.clone()))
+}
+
+async fn fetch_gemini_models(api_key: &str) -> Result<Vec<String>, String> {
+    let url = "https://generativelanguage.googleapis.com/v1beta/models";
+
+    let client = create_base_client()
+        .build()
+        .map_err(|e| format!("Failed to build Gemini HTTP client: {}", e))?;
+
+    let response = client
+        .get(url)
+        .header("x-goog-api-key", api_key)
+        .header(USER_AGENT, PHRASER_USER_AGENT)
+        .header(REFERER, "https://github.com/newblacc/Phraser")
+        .send()
+        .await
+        .map_err(|e| format!("Failed to fetch Gemini models: {}", e))?;
+
+    let status = response.status();
+    if !status.is_success() {
+        let error_text = response
+            .text()
+            .await
+            .unwrap_or_else(|_| "Unknown error".to_string());
+        return Err(format!(
+            "Gemini model list request failed ({}): {}",
+            status, error_text
+        ));
+    }
+
+    let parsed: serde_json::Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse Gemini response: {}", e))?;
+
+    let mut models = Vec::new();
+    if let Some(data) = parsed.get("models").and_then(|d| d.as_array()) {
+        for entry in data {
+            if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
+                // Gemini returns "models/gemini-2.5-flash" - strip the prefix
+                let model_id = name.strip_prefix("models/").unwrap_or(name);
+                if model_id.contains("gemini") {
+                    models.push(model_id.to_string());
+                }
+            }
+        }
+    }
+
+    Ok(models)
 }
 
 /// Fetch available models from an OpenAI-compatible API
@@ -406,48 +486,4 @@ mod tests {
         let response: ChatCompletionResponse = serde_json::from_str(json).unwrap();
         assert!(response.choices.is_empty());
     }
-}
-
-async fn fetch_gemini_models(api_key: &str) -> Result<Vec<String>, String> {
-    let url = "https://generativelanguage.googleapis.com/v1beta/models";
-
-    let client = reqwest::Client::new();
-    let response = client
-        .get(url)
-        .header("x-goog-api-key", api_key)
-        .send()
-        .await
-        .map_err(|e| format!("Failed to fetch Gemini models: {}", e))?;
-
-    let status = response.status();
-    if !status.is_success() {
-        let error_text = response
-            .text()
-            .await
-            .unwrap_or_else(|_| "Unknown error".to_string());
-        return Err(format!(
-            "Gemini model list request failed ({}): {}",
-            status, error_text
-        ));
-    }
-
-    let parsed: serde_json::Value = response
-        .json()
-        .await
-        .map_err(|e| format!("Failed to parse Gemini response: {}", e))?;
-
-    let mut models = Vec::new();
-    if let Some(data) = parsed.get("models").and_then(|d| d.as_array()) {
-        for entry in data {
-            if let Some(name) = entry.get("name").and_then(|n| n.as_str()) {
-                // Gemini returns "models/gemini-2.5-flash" - strip the prefix
-                let model_id = name.strip_prefix("models/").unwrap_or(name);
-                if model_id.contains("gemini") {
-                    models.push(model_id.to_string());
-                }
-            }
-        }
-    }
-
-    Ok(models)
 }

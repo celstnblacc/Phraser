@@ -13,7 +13,7 @@ import Footer from "./components/footer";
 import Onboarding, { AccessibilityOnboarding } from "./components/onboarding";
 import { Sidebar, SidebarSection, SECTIONS_CONFIG } from "./components/Sidebar";
 import { useSettings } from "./hooks/useSettings";
-import { useSettingsStore } from "./stores/settingsStore";
+import { useAudioDeviceStore } from "./stores/audioDeviceStore";
 import { commands } from "@/bindings";
 import { getLanguageDirection, initializeRTL } from "@/lib/utils/rtl";
 
@@ -37,10 +37,10 @@ function App() {
     useState<SidebarSection>("general");
   const { settings, updateSetting } = useSettings();
   const direction = getLanguageDirection(i18n.language);
-  const refreshAudioDevices = useSettingsStore(
+  const refreshAudioDevices = useAudioDeviceStore(
     (state) => state.refreshAudioDevices,
   );
-  const refreshOutputDevices = useSettingsStore(
+  const refreshOutputDevices = useAudioDeviceStore(
     (state) => state.refreshOutputDevices,
   );
   const hasCompletedPostOnboardingInit = useRef(false);

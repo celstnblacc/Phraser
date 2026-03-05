@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useAudioDeviceStore } from "../stores/audioDeviceStore";
 import type { AppSettings as Settings, AudioDevice } from "@/bindings";
 
 interface UseSettingsReturn {
@@ -45,6 +46,7 @@ interface UseSettingsReturn {
 
 export const useSettings = (): UseSettingsReturn => {
   const store = useSettingsStore();
+  const audioStore = useAudioDeviceStore();
 
   // Initialize on first mount
   useEffect(() => {
@@ -57,15 +59,15 @@ export const useSettings = (): UseSettingsReturn => {
     settings: store.settings,
     isLoading: store.isLoading,
     isUpdating: store.isUpdatingKey,
-    audioDevices: store.audioDevices,
-    outputDevices: store.outputDevices,
+    audioDevices: audioStore.audioDevices,
+    outputDevices: audioStore.outputDevices,
     audioFeedbackEnabled: store.settings?.audio_feedback || false,
     postProcessModelOptions: store.postProcessModelOptions,
     updateSetting: store.updateSetting,
     resetSetting: store.resetSetting,
     refreshSettings: store.refreshSettings,
-    refreshAudioDevices: store.refreshAudioDevices,
-    refreshOutputDevices: store.refreshOutputDevices,
+    refreshAudioDevices: audioStore.refreshAudioDevices,
+    refreshOutputDevices: audioStore.refreshOutputDevices,
     updateBinding: store.updateBinding,
     resetBinding: store.resetBinding,
     getSetting: store.getSetting,

@@ -9,7 +9,7 @@ import {
 } from "tauri-plugin-macos-permissions-api";
 import { toast } from "sonner";
 import { commands } from "@/bindings";
-import { useSettingsStore } from "@/stores/settingsStore";
+import { useAudioDeviceStore } from "@/stores/audioDeviceStore";
 import PhraserTextLogo from "../icons/PhraserTextLogo";
 import { Keyboard, Mic, Check, Loader2 } from "lucide-react";
 
@@ -28,10 +28,10 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   onComplete,
 }) => {
   const { t } = useTranslation();
-  const refreshAudioDevices = useSettingsStore(
+  const refreshAudioDevices = useAudioDeviceStore(
     (state) => state.refreshAudioDevices,
   );
-  const refreshOutputDevices = useSettingsStore(
+  const refreshOutputDevices = useAudioDeviceStore(
     (state) => state.refreshOutputDevices,
   );
   const [isMacOS, setIsMacOS] = useState<boolean | null>(null);

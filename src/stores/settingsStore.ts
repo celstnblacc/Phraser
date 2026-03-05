@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { AppSettings as Settings, AudioDevice } from "@/bindings";
+import type { AppSettings as Settings } from "@/bindings";
 import { commands } from "@/bindings";
 
 interface SettingsStore {
@@ -8,8 +8,6 @@ interface SettingsStore {
   defaultSettings: Settings | null;
   isLoading: boolean;
   isUpdating: Record<string, boolean>;
-  audioDevices: AudioDevice[];
-  outputDevices: AudioDevice[];
   customSounds: { start: boolean; stop: boolean };
   postProcessModelOptions: Record<string, string[]>;
 
@@ -22,8 +20,6 @@ interface SettingsStore {
   ) => Promise<void>;
   resetSetting: (key: keyof Settings) => Promise<void>;
   refreshSettings: () => Promise<void>;
-  refreshAudioDevices: () => Promise<void>;
-  refreshOutputDevices: () => Promise<void>;
   updateBinding: (id: string, binding: string) => Promise<void>;
   resetBinding: (id: string) => Promise<void>;
   getSetting: <K extends keyof Settings>(key: K) => Settings[K] | undefined;
@@ -53,19 +49,11 @@ interface SettingsStore {
   setDefaultSettings: (defaultSettings: Settings | null) => void;
   setLoading: (loading: boolean) => void;
   setUpdating: (key: string, updating: boolean) => void;
-  setAudioDevices: (devices: AudioDevice[]) => void;
-  setOutputDevices: (devices: AudioDevice[]) => void;
   setCustomSounds: (sounds: { start: boolean; stop: boolean }) => void;
 }
 
 // Note: Default settings are now fetched from Rust via commands.getDefaultSettings()
 // This ensures platform-specific defaults (like overlay_position, shortcuts, paste_method) work correctly
-
-const DEFAULT_AUDIO_DEVICE: AudioDevice = {
-  index: "default",
-  name: "Default",
-  is_default: true,
-};
 
 const settingUpdaters: {
   [K in keyof Settings]?: (value: Settings[K]) => Promise<unknown>;
@@ -129,7 +117,7 @@ const settingUpdaters: {
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>
     commands.changeAppendTrailingSpaceSetting(value as boolean),
-  log_level: (value) => commands.setLogLevel(value as any),
+  log_level: (value) => commands.setLogLevel(value as Settings["log_level"]),
   app_language: (value) => commands.changeAppLanguageSetting(value as string),
   experimental_enabled: (value) =>
     commands.changeExperimentalEnabledSetting(value as boolean),
@@ -150,8 +138,6 @@ export const useSettingsStore = create<SettingsStore>()(
     defaultSettings: null,
     isLoading: true,
     isUpdating: {},
-    audioDevices: [],
-    outputDevices: [],
     customSounds: { start: false, stop: false },
     postProcessModelOptions: {},
 
@@ -163,8 +149,6 @@ export const useSettingsStore = create<SettingsStore>()(
       set((state) => ({
         isUpdating: { ...state.isUpdating, [key]: updating },
       })),
-    setAudioDevices: (audioDevices) => set({ audioDevices }),
-    setOutputDevices: (outputDevices) => set({ outputDevices }),
     setCustomSounds: (customSounds) => set({ customSounds }),
 
     // Getters
@@ -193,48 +177,6 @@ export const useSettingsStore = create<SettingsStore>()(
       } catch (error) {
         console.error("Failed to load settings:", error);
         set({ isLoading: false });
-      }
-    },
-
-    // Load audio devices
-    refreshAudioDevices: async () => {
-      try {
-        const result = await commands.getAvailableMicrophones();
-        if (result.status === "ok") {
-          const devicesWithDefault = [
-            DEFAULT_AUDIO_DEVICE,
-            ...result.data.filter(
-              (d) => d.name !== "Default" && d.name !== "default",
-            ),
-          ];
-          set({ audioDevices: devicesWithDefault });
-        } else {
-          set({ audioDevices: [DEFAULT_AUDIO_DEVICE] });
-        }
-      } catch (error) {
-        console.error("Failed to load audio devices:", error);
-        set({ audioDevices: [DEFAULT_AUDIO_DEVICE] });
-      }
-    },
-
-    // Load output devices
-    refreshOutputDevices: async () => {
-      try {
-        const result = await commands.getAvailableOutputDevices();
-        if (result.status === "ok") {
-          const devicesWithDefault = [
-            DEFAULT_AUDIO_DEVICE,
-            ...result.data.filter(
-              (d) => d.name !== "Default" && d.name !== "default",
-            ),
-          ];
-          set({ outputDevices: devicesWithDefault });
-        } else {
-          set({ outputDevices: [DEFAULT_AUDIO_DEVICE] });
-        }
-      } catch (error) {
-        console.error("Failed to load output devices:", error);
-        set({ outputDevices: [DEFAULT_AUDIO_DEVICE] });
       }
     },
 
@@ -294,7 +236,7 @@ export const useSettingsStore = create<SettingsStore>()(
       if (defaultSettings) {
         const defaultValue = defaultSettings[key];
         if (defaultValue !== undefined) {
-          await get().updateSetting(key, defaultValue as any);
+          await get().updateSetting(key, defaultValue as Settings[typeof key]);
         }
       }
     },
