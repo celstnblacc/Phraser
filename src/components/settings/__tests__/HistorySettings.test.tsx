@@ -31,7 +31,8 @@ const mockCommands = vi.mocked(commands);
 
 const SAMPLE_ENTRY: HistoryEntry = {
   id: 1,
-  timestamp: "2024-01-01T12:00:00Z",
+  title: "Hello world",
+  timestamp: 1704110400000,
   transcription_text: "Hello world",
   post_processed_text: null,
   post_process_prompt: null,

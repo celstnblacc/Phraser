@@ -216,7 +216,7 @@ describe("LogLevelSelector", () => {
 describe("ClipboardHandlingSetting", () => {
   it("renders the clipboard handling title", () => {
     mockUseSettings.mockReturnValue(
-      makeSettings({ clipboard_handling: "restore" }),
+      makeSettings({ clipboard_handling: "dont_modify" }),
     );
     render(<ClipboardHandlingSetting />);
     expect(
@@ -225,16 +225,17 @@ describe("ClipboardHandlingSetting", () => {
   });
 
   it("calls updateSetting when option is changed", async () => {
-    const settings = makeSettings({ clipboard_handling: "restore" });
+    const settings = makeSettings({ clipboard_handling: "dont_modify" });
     mockUseSettings.mockReturnValue(settings);
     render(<ClipboardHandlingSetting />);
     // Index 0 is the tooltip SVG (role="button"); index 1 is the dropdown trigger
     const buttons = screen.getAllByRole("button");
     await userEvent.click(buttons[1]);
-    const option = screen.getByText(
+    // Both trigger and list item show the same text; click the last (list item)
+    const opts = screen.getAllByText(
       "settings.advanced.clipboardHandling.options.dontModify",
     );
-    await userEvent.click(option);
+    await userEvent.click(opts[opts.length - 1]);
     expect(settings.updateSetting).toHaveBeenCalledWith(
       "clipboard_handling",
       "dont_modify",
@@ -246,9 +247,7 @@ describe("ClipboardHandlingSetting", () => {
 
 describe("PasteMethodSetting", () => {
   it("renders the paste method title", () => {
-    mockUseSettings.mockReturnValue(
-      makeSettings({ paste_method: "clipboard" }),
-    );
+    mockUseSettings.mockReturnValue(makeSettings({ paste_method: "ctrl_v" }));
     render(<PasteMethodSetting />);
     expect(
       screen.getByText("settings.advanced.pasteMethod.title"),
@@ -256,7 +255,7 @@ describe("PasteMethodSetting", () => {
   });
 
   it("calls updateSetting when a method is selected", async () => {
-    const settings = makeSettings({ paste_method: "clipboard" });
+    const settings = makeSettings({ paste_method: "ctrl_v" });
     mockUseSettings.mockReturnValue(settings);
     render(<PasteMethodSetting />);
     // Index 0 is the tooltip SVG (role="button"); index 1 is the dropdown trigger

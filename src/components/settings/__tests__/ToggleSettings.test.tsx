@@ -33,7 +33,7 @@ beforeEach(() => {
 
 function testToggle(
   Component: React.ComponentType<{
-    descriptionMode?: string;
+    descriptionMode?: "inline" | "tooltip";
     grouped?: boolean;
   }>,
   settingKey: keyof AppSettings,
