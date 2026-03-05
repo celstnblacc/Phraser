@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { AudioDevice } from "@/bindings";
+import type { AudioDevice, Result } from "@/bindings";
 import { commands } from "@/bindings";
 
 // Sentinel entry representing the system-default device for both
@@ -10,22 +10,19 @@ export const DEFAULT_DEVICE_ENTRY: AudioDevice = {
   is_default: true,
 };
 
-// Case-insensitive guard: the backend may return a "Default" device entry;
-// we replace it with our own sentinel to ensure consistent identity.
-const DEFAULT_DEVICE_NAME_LOWER = "default";
+// The backend may return its own "Default" device; we filter it and use our sentinel instead.
+const BACKEND_DEFAULT_DEVICE_NAME = "default";
 
 async function fetchDeviceList(
-  fetcher: () => Promise<
-    { status: string; data: AudioDevice[] } | { status: "error"; error: string }
-  >,
+  fetcher: () => Promise<Result<AudioDevice[], string>>,
 ): Promise<AudioDevice[]> {
   try {
     const result = await fetcher();
     if (result.status === "ok") {
       return [
         DEFAULT_DEVICE_ENTRY,
-        ...(result as { status: "ok"; data: AudioDevice[] }).data.filter(
-          (d) => d.name.toLowerCase() !== DEFAULT_DEVICE_NAME_LOWER,
+        ...result.data.filter(
+          (d) => d.name.toLowerCase() !== BACKEND_DEFAULT_DEVICE_NAME,
         ),
       ];
     }

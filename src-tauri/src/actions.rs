@@ -301,11 +301,11 @@ async fn post_process_transcription(settings: &AppSettings, transcription: &str)
                         }
                     }
                     Err(e) => {
-                        error!(
-                            "Failed to parse structured output JSON: {}. Returning raw content.",
-                            e
+                        warn!(
+                            "Failed to parse structured output JSON for provider '{}': {}. Falling back to legacy mode.",
+                            provider.id, e
                         );
-                        return Some(strip_invisible_chars(&content));
+                        // Fall through to legacy mode below
                     }
                 }
             }
@@ -571,8 +571,8 @@ async fn build_processed_text(
     };
 
     if let Some(processed_text) = processed {
-        post_processed_text = Some(processed_text.clone());
-        final_text = processed_text;
+        final_text = processed_text.clone();
+        post_processed_text = Some(processed_text);
         if let Some(action) = selected_action {
             post_process_prompt = Some(action.prompt);
         } else if let Some(prompt_id) = &settings.post_process_selected_prompt_id {
@@ -597,6 +597,7 @@ async fn build_processed_text(
 }
 
 /// Spawn an async task to persist the transcription entry to history.
+/// Fire-and-forget: drop the JoinHandle so history I/O never blocks transcription output.
 fn spawn_save_transcription(
     hm: Arc<HistoryManager>,
     samples: Vec<f32>,
@@ -605,7 +606,7 @@ fn spawn_save_transcription(
     post_process_prompt: Option<String>,
     action_key: Option<u8>,
 ) {
-    tauri::async_runtime::spawn(async move {
+    let _ = tauri::async_runtime::spawn(async move {
         if let Err(e) = hm
             .save_transcription(
                 samples,
@@ -646,9 +647,9 @@ fn paste_transcription_on_main_thread(ah: AppHandle, final_text: String) {
 /// Restore the model that was active before long-audio switching.
 /// `original_model` is `Some(id)` only when a switch actually occurred; `None` is a no-op.
 fn restore_model_after_long_audio(tm: &TranscriptionManager, original_model: Option<String>) {
-    if let Some(ref orig_id) = original_model {
+    if let Some(orig_id) = original_model {
         debug!("Restoring original model: {}", orig_id);
-        if let Err(e) = tm.load_model(orig_id) {
+        if let Err(e) = tm.load_model(&orig_id) {
             warn!("Failed to restore original model '{}': {}", orig_id, e);
         }
     }
@@ -786,8 +787,11 @@ impl ShortcutAction for TranscribeAction {
                     samples.len()
                 );
 
+                // Single settings snapshot for the entire pipeline — avoids TOCTOU
+                // between model selection and text processing.
                 let settings = get_settings(&ah);
-                let original_model = maybe_switch_model_for_long_audio(&tm, &settings, samples.len());
+                let original_model =
+                    maybe_switch_model_for_long_audio(&tm, &settings, samples.len());
 
                 // TODO: Change TranscriptionManager::transcribe() to take &[f32] so this
                 // clone can be deferred to the success-and-non-empty branch. Currently
@@ -801,7 +805,6 @@ impl ShortcutAction for TranscribeAction {
                             transcription_time.elapsed(),
                             transcription
                         );
-                        let settings = get_settings(&ah);
                         let selected_action = selected_action_key.and_then(|key| {
                             settings
                                 .post_process_actions
@@ -819,12 +822,10 @@ impl ShortcutAction for TranscribeAction {
                             &transcription,
                             selected_action,
                             post_process,
-                        ).await;
-                        let final_text = result.final_text;
-                        let post_processed_text = result.post_processed_text;
-                        let post_process_prompt = result.post_process_prompt;
+                        )
+                        .await;
 
-                        let action_key_for_history = if post_processed_text.is_some() {
+                        let action_key_for_history = if result.post_processed_text.is_some() {
                             selected_action_key
                         } else {
                             None
@@ -833,11 +834,11 @@ impl ShortcutAction for TranscribeAction {
                             Arc::clone(&hm),
                             samples_for_history,
                             transcription,
-                            post_processed_text,
-                            post_process_prompt,
+                            result.post_processed_text,
+                            result.post_process_prompt,
                             action_key_for_history,
                         );
-                        paste_transcription_on_main_thread(ah.clone(), final_text);
+                        paste_transcription_on_main_thread(ah.clone(), result.final_text);
                     }
                     Ok(_) => {
                         debug!("Transcription returned empty result");

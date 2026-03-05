@@ -5,6 +5,7 @@ use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMetho
 use enigo::{Direction, Enigo, Key, Keyboard};
 use log::info;
 use std::process::Command;
+use std::sync::OnceLock;
 use std::time::Duration;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -255,9 +256,10 @@ pub fn get_available_typing_tools() -> Vec<String> {
     tools
 }
 
-/// Check if a CLI tool is available on PATH.
+/// Check if a CLI tool is available on PATH. Result is cached for the process lifetime
+/// — tool availability is static; re-probing on every paste wastes subprocess spawns.
 #[cfg(target_os = "linux")]
-fn is_tool_available(name: &str) -> bool {
+fn probe_tool(name: &str) -> bool {
     Command::new("which")
         .arg(name)
         .output()
@@ -267,32 +269,38 @@ fn is_tool_available(name: &str) -> bool {
 
 #[cfg(target_os = "linux")]
 fn is_wtype_available() -> bool {
-    is_tool_available("wtype")
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| probe_tool("wtype"))
 }
 
 #[cfg(target_os = "linux")]
 fn is_dotool_available() -> bool {
-    is_tool_available("dotool")
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| probe_tool("dotool"))
 }
 
 #[cfg(target_os = "linux")]
 fn is_ydotool_available() -> bool {
-    is_tool_available("ydotool")
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| probe_tool("ydotool"))
 }
 
 #[cfg(target_os = "linux")]
 fn is_xdotool_available() -> bool {
-    is_tool_available("xdotool")
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| probe_tool("xdotool"))
 }
 
 #[cfg(target_os = "linux")]
 fn is_kwtype_available() -> bool {
-    is_tool_available("kwtype")
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| probe_tool("kwtype"))
 }
 
 #[cfg(target_os = "linux")]
 fn is_wl_copy_available() -> bool {
-    is_tool_available("wl-copy")
+    static CACHE: OnceLock<bool> = OnceLock::new();
+    *CACHE.get_or_init(|| probe_tool("wl-copy"))
 }
 
 /// Type text directly via wtype on Wayland.
@@ -343,8 +351,10 @@ fn type_text_via_dotool(text: &str) -> Result<(), String> {
         .map_err(|e| format!("Failed to spawn dotool: {}", e))?;
 
     if let Some(mut stdin) = child.stdin.take() {
-        // dotool uses "type <text>" command
-        writeln!(stdin, "type {}", text)
+        // dotool's "type" command is line-oriented: \n terminates the command.
+        // \r can also produce unexpected output. Replace both with a space.
+        let safe_text = text.replace(['\n', '\r'], " ");
+        writeln!(stdin, "type {}", safe_text)
             .map_err(|e| format!("Failed to write to dotool stdin: {}", e))?;
     }
 
@@ -442,21 +452,32 @@ fn send_key_combo_via_wtype(paste_method: &PasteMethod) -> Result<(), String> {
 /// Send a key combination (e.g., Ctrl+V) via dotool.
 #[cfg(target_os = "linux")]
 fn send_key_combo_via_dotool(paste_method: &PasteMethod) -> Result<(), String> {
-    let command;
-    match paste_method {
-        PasteMethod::CtrlV => command = "echo key ctrl+v | dotool",
-        PasteMethod::ShiftInsert => command = "echo key shift+insert | dotool",
-        PasteMethod::CtrlShiftV => command = "echo key ctrl+shift+v | dotool",
-        _ => return Err("Unsupported paste method".into()),
-    }
+    use std::io::Write;
     use std::process::Stdio;
-    let status = Command::new("sh")
-        .arg("-c")
-        .arg(command)
+
+    let key_cmd = match paste_method {
+        PasteMethod::CtrlV => "key ctrl+v",
+        PasteMethod::ShiftInsert => "key shift+insert",
+        PasteMethod::CtrlShiftV => "key ctrl+shift+v",
+        _ => return Err("Unsupported paste method".into()),
+    };
+
+    let mut child = Command::new("dotool")
+        .stdin(Stdio::piped())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .status()
-        .map_err(|e| format!("Failed to execute dotool: {}", e))?;
+        .spawn()
+        .map_err(|e| format!("Failed to spawn dotool: {}", e))?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        writeln!(stdin, "{}", key_cmd)
+            .map_err(|e| format!("Failed to write to dotool stdin: {}", e))?;
+    }
+
+    let status = child
+        .wait()
+        .map_err(|e| format!("Failed to wait for dotool: {}", e))?;
+
     if !status.success() {
         return Err("dotool failed".into());
     }
@@ -801,5 +822,25 @@ mod tests {
         assert!(should_send_auto_submit(true, PasteMethod::Direct));
         assert!(should_send_auto_submit(true, PasteMethod::CtrlShiftV));
         assert!(should_send_auto_submit(true, PasteMethod::ShiftInsert));
+    }
+
+    /// Dotool stdin injection fix: newlines in transcription text must be replaced with spaces
+    /// so they don't create a second command in dotool's line-oriented protocol.
+    #[test]
+    fn dotool_newline_in_text_is_replaced_with_space() {
+        let text = "hello\nworld";
+        let safe_text = text.replace('\n', " ");
+        assert_eq!(safe_text, "hello world");
+        assert!(!safe_text.contains('\n'));
+    }
+
+    #[test]
+    fn dotool_carriage_return_is_also_replaced() {
+        // \r can cause unexpected output in dotool; both \n and \r must be sanitized.
+        let text = "line one\r\nline two\rline three";
+        let safe = text.replace(['\n', '\r'], " ");
+        assert!(!safe.contains('\n'));
+        assert!(!safe.contains('\r'));
+        assert_eq!(safe, "line one  line two line three");
     }
 }

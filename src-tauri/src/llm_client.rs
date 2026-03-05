@@ -1,4 +1,6 @@
-use crate::settings::PostProcessProvider;
+use crate::settings::{
+    PostProcessProvider, PROVIDER_ID_ANTHROPIC, PROVIDER_ID_GEMINI, PROVIDER_ID_OPENAI,
+};
 use log::debug;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, REFERER, USER_AGENT};
 use serde::{Deserialize, Serialize};
@@ -7,6 +9,7 @@ use std::time::Duration;
 
 const REQUEST_TIMEOUT_SECS: u64 = 30;
 const PHRASER_USER_AGENT: &str = "Phraser/1.0 (+https://github.com/newblacc/Phraser)";
+const PHRASER_REFERER: &str = "https://github.com/newblacc/Phraser";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 
 #[derive(Debug, Serialize)]
@@ -57,16 +60,13 @@ fn build_headers(provider: &PostProcessProvider, api_key: &str) -> Result<Header
     let mut headers = HeaderMap::new();
 
     headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-    headers.insert(
-        REFERER,
-        HeaderValue::from_static("https://github.com/newblacc/Phraser"),
-    );
+    headers.insert(REFERER, HeaderValue::from_static(PHRASER_REFERER));
     headers.insert(USER_AGENT, HeaderValue::from_static(PHRASER_USER_AGENT));
     headers.insert("X-Title", HeaderValue::from_static("Phraser"));
 
     // Provider-specific auth headers
     if !api_key.is_empty() {
-        if provider.id == "anthropic" {
+        if provider.id == PROVIDER_ID_ANTHROPIC {
             headers.insert(
                 "x-api-key",
                 HeaderValue::from_str(api_key)
@@ -147,7 +147,7 @@ pub async fn send_chat_completion_with_schema(
     json_schema: Option<Value>,
 ) -> Result<Option<String>, String> {
     // Route Gemini requests to the dedicated Gemini client
-    if provider.id == "gemini" {
+    if provider.id == PROVIDER_ID_GEMINI {
         let sys = system_prompt.unwrap_or_default();
         match crate::gemini_client::generate_text(&api_key, model, &sys, &user_content).await {
             Ok(text) if !text.is_empty() => return Ok(Some(text)),
@@ -237,7 +237,7 @@ async fn fetch_gemini_models(api_key: &str) -> Result<Vec<String>, String> {
         .get(url)
         .header("x-goog-api-key", api_key)
         .header(USER_AGENT, PHRASER_USER_AGENT)
-        .header(REFERER, "https://github.com/newblacc/Phraser")
+        .header(REFERER, PHRASER_REFERER)
         .send()
         .await
         .map_err(|e| format!("Failed to fetch Gemini models: {}", e))?;
@@ -282,7 +282,7 @@ pub async fn fetch_models(
     api_key: String,
 ) -> Result<Vec<String>, String> {
     // Gemini uses a different API format for listing models
-    if provider.id == "gemini" {
+    if provider.id == PROVIDER_ID_GEMINI {
         return fetch_gemini_models(&api_key).await;
     }
 
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn build_headers_anthropic_uses_x_api_key() {
-        let provider = make_provider("anthropic", "https://api.anthropic.com/v1");
+        let provider = make_provider(PROVIDER_ID_ANTHROPIC, "https://api.anthropic.com/v1");
         let headers = build_headers(&provider, "sk-ant-test").unwrap();
 
         assert_eq!(headers.get("x-api-key").unwrap(), "sk-ant-test");
@@ -485,5 +485,25 @@ mod tests {
         let json = r#"{"choices": []}"#;
         let response: ChatCompletionResponse = serde_json::from_str(json).unwrap();
         assert!(response.choices.is_empty());
+    }
+
+    #[test]
+    fn referer_header_matches_constant() {
+        let provider = make_provider(PROVIDER_ID_OPENAI, "https://api.openai.com/v1");
+        let headers = build_headers(&provider, "key").unwrap();
+        assert_eq!(
+            headers.get(REFERER).unwrap().to_str().unwrap(),
+            PHRASER_REFERER
+        );
+    }
+
+    #[test]
+    fn user_agent_header_matches_constant() {
+        let provider = make_provider(PROVIDER_ID_OPENAI, "https://api.openai.com/v1");
+        let headers = build_headers(&provider, "key").unwrap();
+        assert_eq!(
+            headers.get(USER_AGENT).unwrap().to_str().unwrap(),
+            PHRASER_USER_AGENT
+        );
     }
 }

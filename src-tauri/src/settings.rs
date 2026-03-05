@@ -1,4 +1,4 @@
-use log::{debug, warn};
+use log::{debug, error, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
@@ -14,6 +14,17 @@ pub const LANG_SIMPLIFIED_CHINESE: &str = "zh-Hans";
 
 /// BCP 47 tag for Traditional Chinese (used in language selection and transcription).
 pub const LANG_TRADITIONAL_CHINESE: &str = "zh-Hant";
+
+/// Provider IDs — single source of truth; used in routing logic across llm_client, actions, and
+/// transcription. Any rename must happen here only.
+pub const PROVIDER_ID_ANTHROPIC: &str = "anthropic";
+pub const PROVIDER_ID_GEMINI: &str = "gemini";
+pub const PROVIDER_ID_OPENAI: &str = "openai";
+pub const PROVIDER_ID_OPENROUTER: &str = "openrouter";
+pub const PROVIDER_ID_GROQ: &str = "groq";
+pub const PROVIDER_ID_CEREBRAS: &str = "cerebras";
+pub const PROVIDER_ID_ZAI: &str = "zai";
+pub const PROVIDER_ID_CUSTOM: &str = "custom";
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "lowercase")]
@@ -300,7 +311,6 @@ impl Default for TypingTool {
     }
 }
 
-/* still handy for composing the initial JSON in the store ------------- */
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct AppSettings {
     pub bindings: HashMap<String, ShortcutBinding>,
@@ -810,87 +820,83 @@ impl AppSettings {
     }
 }
 
-pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
-    // Initialize store
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
+/// Serialize settings to JSON and persist via the store.
+/// `AppSettings` derives `Serialize`, so failure here is a programming error — log it loudly.
+fn persist_settings(store: &tauri_plugin_store::Store<tauri::Wry>, settings: &AppSettings) {
+    match serde_json::to_value(settings) {
+        Ok(v) => store.set("settings", v),
+        Err(e) => error!(
+            "BUG: Failed to serialize AppSettings — settings not saved: {}",
+            e
+        ),
+    }
+}
 
-    let mut settings = if let Some(settings_value) = store.get("settings") {
-        // Parse the entire settings object
-        match serde_json::from_value::<AppSettings>(settings_value) {
-            Ok(mut settings) => {
-                debug!("Found existing settings");
-                let default_settings = get_default_settings();
-                let mut updated = false;
-
-                // Merge default bindings into existing settings
-                for (key, value) in default_settings.bindings {
-                    if !settings.bindings.contains_key(&key) {
-                        debug!("Adding missing binding: {}", key);
-                        settings.bindings.insert(key, value);
-                        updated = true;
+/// Load or create settings from the store, merge missing bindings, and apply post-process
+/// defaults. Used at startup (`load_or_create_app_settings`) and on every read (`get_settings`).
+fn load_settings_from_store(
+    store: &tauri_plugin_store::Store<tauri::Wry>,
+    fill_missing_bindings: bool,
+) -> AppSettings {
+    let mut settings = if let Some(value) = store.get("settings") {
+        match serde_json::from_value::<AppSettings>(value) {
+            Ok(mut s) => {
+                if fill_missing_bindings {
+                    let defaults = get_default_settings();
+                    let mut updated = false;
+                    for (key, value) in defaults.bindings {
+                        if !s.bindings.contains_key(&key) {
+                            debug!("Adding missing binding: {}", key);
+                            s.bindings.insert(key, value);
+                            updated = true;
+                        }
+                    }
+                    if updated {
+                        debug!("Settings updated with new bindings");
+                        persist_settings(store, &s);
                     }
                 }
-
-                if updated {
-                    debug!("Settings updated with new bindings");
-                    store.set("settings", serde_json::to_value(&settings).unwrap());
-                }
-
-                settings
+                s
             }
             Err(e) => {
-                warn!("Failed to parse settings: {}", e);
-                // Fall back to default settings if parsing fails
-                let default_settings = get_default_settings();
-                store.set("settings", serde_json::to_value(&default_settings).unwrap());
-                default_settings
+                warn!("Failed to parse settings: {}. Falling back to defaults.", e);
+                let defaults = get_default_settings();
+                persist_settings(store, &defaults);
+                defaults
             }
         }
     } else {
-        let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
-        default_settings
+        let defaults = get_default_settings();
+        persist_settings(store, &defaults);
+        defaults
     };
 
     if ensure_post_process_defaults(&mut settings) {
-        store.set("settings", serde_json::to_value(&settings).unwrap());
+        persist_settings(store, &settings);
     }
 
     settings
+}
+
+pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
+    let store = app
+        .store(SETTINGS_STORE_PATH)
+        .expect("Failed to initialize store");
+    load_settings_from_store(&store, true)
 }
 
 pub fn get_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
-
-    let mut settings = if let Some(settings_value) = store.get("settings") {
-        serde_json::from_value::<AppSettings>(settings_value).unwrap_or_else(|_| {
-            let default_settings = get_default_settings();
-            store.set("settings", serde_json::to_value(&default_settings).unwrap());
-            default_settings
-        })
-    } else {
-        let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
-        default_settings
-    };
-
-    if ensure_post_process_defaults(&mut settings) {
-        store.set("settings", serde_json::to_value(&settings).unwrap());
-    }
-
-    settings
+    load_settings_from_store(&store, false)
 }
 
 pub fn write_settings(app: &AppHandle, settings: AppSettings) {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
-
-    store.set("settings", serde_json::to_value(&settings).unwrap());
+    persist_settings(&store, &settings);
 }
 
 pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
@@ -899,12 +905,9 @@ pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
     settings.bindings
 }
 
-pub fn get_stored_binding(app: &AppHandle, id: &str) -> ShortcutBinding {
+pub fn get_stored_binding(app: &AppHandle, id: &str) -> Option<ShortcutBinding> {
     let bindings = get_bindings(app);
-
-    let binding = bindings.get(id).unwrap().clone();
-
-    binding
+    bindings.get(id).cloned()
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {
@@ -1206,5 +1209,27 @@ mod tests {
             let deserialized: RecordingRetentionPeriod = serde_json::from_str(&json).unwrap();
             assert_eq!(period, deserialized);
         }
+    }
+
+    // --- provider ID constants ---
+
+    #[test]
+    fn provider_id_constants_match_default_providers() {
+        let providers = default_post_process_providers();
+        let ids: Vec<&str> = providers.iter().map(|p| p.id.as_str()).collect();
+        assert!(ids.contains(&PROVIDER_ID_OPENAI));
+        assert!(ids.contains(&PROVIDER_ID_ANTHROPIC));
+        assert!(ids.contains(&PROVIDER_ID_GEMINI));
+        assert!(ids.contains(&PROVIDER_ID_OPENROUTER));
+        assert!(ids.contains(&PROVIDER_ID_GROQ));
+        assert!(ids.contains(&PROVIDER_ID_CEREBRAS));
+        assert!(ids.contains(&PROVIDER_ID_ZAI));
+        assert!(ids.contains(&PROVIDER_ID_CUSTOM));
+    }
+
+    #[test]
+    fn lang_constants_match_expected_bcp47_tags() {
+        assert_eq!(LANG_SIMPLIFIED_CHINESE, "zh-Hans");
+        assert_eq!(LANG_TRADITIONAL_CHINESE, "zh-Hant");
     }
 }
