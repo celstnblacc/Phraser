@@ -99,12 +99,12 @@ Move to the lazygit pane. Basic keys:
 
 Make sure your **shell pane is focused**, then:
 
-| You want to        | Do this                                                    |
-| ------------------ | ---------------------------------------------------------- |
-| Jump to a dir      | Hold `Option+Space` + press `1` → speak dir name → release |
-| Open Yazi          | Hold `Option+Space` + press `2` → release                  |
-| Run a bash command | Hold `Option+Space` + press `3` → speak intent → release   |
-| Just dictate text  | Hold `Option+Space` → speak → release (no number key)      |
+| You want to        | Do this                                               |
+| ------------------ | ----------------------------------------------------- |
+| Jump to a dir      | Hold `Ctrl+1` → speak dir name → release              |
+| Open Yazi          | Hold `Ctrl+2` → release                               |
+| Run a bash command | Hold `Ctrl+3` → speak intent → release                |
+| Just dictate text  | Hold `Option+Space` → speak → release (no number key) |
 
 > ⚠️ **Action 3 executes immediately.** The LLM-generated bash command runs without confirmation. Only use Action 3 for safe, read-only operations until you're confident in the output. Say something destructive and it will execute.
 
@@ -154,9 +154,9 @@ y                → open file browser (cd follows on quit)
 lazygit          → open git UI
 
 Voice shortcuts (Phraser):
-  Option+Space + 1 → navigate (zoxide)
-  Option+Space + 2 → browse files (yazi)
-  Option+Space + 3 → bash command (Ollama)
+  Ctrl+1 → navigate (zoxide)
+  Ctrl+2 → browse files (yazi)
+  Ctrl+3 → bash command (Ollama)
   Option+Space     → dictate text (raw)
 ```
 
