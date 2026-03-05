@@ -263,7 +263,6 @@ jobs:
           echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
 
       - name: Set Tauri signing env vars
-        if: inputs.sign-binaries
         shell: bash
         run: |
           echo "TAURI_SIGNING_PRIVATE_KEY=${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" >> $GITHUB_ENV
