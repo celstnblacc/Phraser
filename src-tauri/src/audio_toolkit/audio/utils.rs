@@ -31,11 +31,70 @@ pub async fn save_wav_file<P: AsRef<Path>>(file_path: P, samples: &[f32]) -> Res
 
     // Convert f32 samples to i16 for WAV
     for sample in samples {
-        let sample_i16 = (sample * i16::MAX as f32) as i16;
+        let sample_i16 = (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16;
         writer.write_sample(sample_i16)?;
     }
 
     writer.finalize()?;
     debug!("Saved WAV file: {:?}", file_path.as_ref());
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn wav_round_trip_preserves_samples() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("test.wav");
+
+        let original: Vec<f32> = vec![0.0, 0.5, -0.5, 0.25, -0.25, 1.0, -1.0];
+        save_wav_file(&path, &original).await.unwrap();
+
+        let loaded = load_wav_file(&path).unwrap();
+        assert_eq!(loaded.len(), original.len());
+
+        // Due to f32->i16->f32 conversion there will be quantization error
+        // i16 has ~15-bit precision, so error should be < 1/32768 ≈ 3e-5
+        for (orig, loaded) in original.iter().zip(loaded.iter()) {
+            assert!(
+                (orig - loaded).abs() < 0.001,
+                "Sample mismatch: original={}, loaded={}",
+                orig,
+                loaded
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn wav_round_trip_empty_samples() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("empty.wav");
+
+        save_wav_file(&path, &[]).await.unwrap();
+        let loaded = load_wav_file(&path).unwrap();
+        assert!(loaded.is_empty());
+    }
+
+    #[tokio::test]
+    async fn wav_round_trip_silence() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("silence.wav");
+
+        let silence: Vec<f32> = vec![0.0; 16000]; // 1 second of silence
+        save_wav_file(&path, &silence).await.unwrap();
+
+        let loaded = load_wav_file(&path).unwrap();
+        assert_eq!(loaded.len(), 16000);
+        for sample in &loaded {
+            assert!((sample.abs()) < 1e-5);
+        }
+    }
+
+    #[test]
+    fn load_nonexistent_file_returns_error() {
+        let result = load_wav_file("/nonexistent/path/file.wav");
+        assert!(result.is_err());
+    }
 }

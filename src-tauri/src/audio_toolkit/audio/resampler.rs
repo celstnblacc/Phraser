@@ -47,15 +47,12 @@ impl FrameResampler {
             src = &src[take..];
 
             if self.in_buf.len() == self.chunk_in {
-                // let start = std::time::Instant::now();
                 if let Ok(out) = self
                     .resampler
                     .as_mut()
                     .unwrap()
                     .process(&[&self.in_buf[..]], None)
                 {
-                    // let duration = start.elapsed();
-                    // log::debug!("Resampler took: {:?}", duration);
                     self.emit_frames(&out[0], &mut emit);
                 }
                 self.in_buf.clear();
@@ -94,6 +91,103 @@ impl FrameResampler {
                 emit(&self.pending);
                 self.pending.clear();
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 30ms at 16kHz = 480 samples
+    const FRAME_SAMPLES_16K_30MS: usize = 480;
+
+    #[test]
+    fn passthrough_when_same_sample_rate() {
+        let mut resampler = FrameResampler::new(16000, 16000, Duration::from_millis(30));
+        let input: Vec<f32> = (0..FRAME_SAMPLES_16K_30MS)
+            .map(|i| i as f32 / FRAME_SAMPLES_16K_30MS as f32)
+            .collect();
+
+        let mut frames = Vec::new();
+        resampler.push(&input, |f| frames.push(f.to_vec()));
+
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].len(), FRAME_SAMPLES_16K_30MS);
+        assert_eq!(frames[0], input);
+    }
+
+    #[test]
+    fn passthrough_emits_multiple_frames() {
+        let mut resampler = FrameResampler::new(16000, 16000, Duration::from_millis(30));
+        let input: Vec<f32> = vec![0.5; FRAME_SAMPLES_16K_30MS * 3];
+
+        let mut frames = Vec::new();
+        resampler.push(&input, |f| frames.push(f.to_vec()));
+
+        assert_eq!(frames.len(), 3);
+        for frame in &frames {
+            assert_eq!(frame.len(), FRAME_SAMPLES_16K_30MS);
+        }
+    }
+
+    #[test]
+    fn passthrough_partial_frame_buffered() {
+        let mut resampler = FrameResampler::new(16000, 16000, Duration::from_millis(30));
+        let input: Vec<f32> = vec![0.1; FRAME_SAMPLES_16K_30MS / 2];
+
+        let mut frames = Vec::new();
+        resampler.push(&input, |f| frames.push(f.to_vec()));
+
+        assert_eq!(frames.len(), 0);
+    }
+
+    #[test]
+    fn finish_emits_padded_remaining() {
+        let mut resampler = FrameResampler::new(16000, 16000, Duration::from_millis(30));
+        let partial_len = FRAME_SAMPLES_16K_30MS / 2;
+        let input: Vec<f32> = vec![0.7; partial_len];
+
+        let mut frames = Vec::new();
+        resampler.push(&input, |f| frames.push(f.to_vec()));
+        assert_eq!(frames.len(), 0);
+
+        resampler.finish(|f| frames.push(f.to_vec()));
+        assert_eq!(frames.len(), 1);
+        assert_eq!(frames[0].len(), FRAME_SAMPLES_16K_30MS);
+        for &s in &frames[0][..partial_len] {
+            assert!((s - 0.7).abs() < 1e-6);
+        }
+        for &s in &frames[0][partial_len..] {
+            assert!(s.abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn finish_noop_when_no_pending() {
+        let mut resampler = FrameResampler::new(16000, 16000, Duration::from_millis(30));
+        let input: Vec<f32> = vec![0.5; FRAME_SAMPLES_16K_30MS];
+
+        let mut frames = Vec::new();
+        resampler.push(&input, |f| frames.push(f.to_vec()));
+        assert_eq!(frames.len(), 1);
+
+        resampler.finish(|f| frames.push(f.to_vec()));
+        assert_eq!(frames.len(), 1);
+    }
+
+    #[test]
+    fn resampling_produces_output() {
+        let mut resampler = FrameResampler::new(48000, 16000, Duration::from_millis(30));
+        let input: Vec<f32> = vec![0.0; 48000]; // 1 second at 48kHz
+
+        let mut frames = Vec::new();
+        resampler.push(&input, |f| frames.push(f.to_vec()));
+        resampler.finish(|f| frames.push(f.to_vec()));
+
+        assert!(!frames.is_empty(), "Resampler should produce output frames");
+        for frame in &frames {
+            assert_eq!(frame.len(), FRAME_SAMPLES_16K_30MS);
         }
     }
 }

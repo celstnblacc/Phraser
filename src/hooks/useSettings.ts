@@ -1,5 +1,7 @@
 import { useEffect } from "react";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useAudioDeviceStore } from "../stores/audioDeviceStore";
+import { usePostProcessStore } from "../stores/postProcessStore";
 import type { AppSettings as Settings, AudioDevice } from "@/bindings";
 
 interface UseSettingsReturn {
@@ -45,6 +47,8 @@ interface UseSettingsReturn {
 
 export const useSettings = (): UseSettingsReturn => {
   const store = useSettingsStore();
+  const audioStore = useAudioDeviceStore();
+  const postProcessStore = usePostProcessStore();
 
   // Initialize on first mount
   useEffect(() => {
@@ -57,22 +61,40 @@ export const useSettings = (): UseSettingsReturn => {
     settings: store.settings,
     isLoading: store.isLoading,
     isUpdating: store.isUpdatingKey,
-    audioDevices: store.audioDevices,
-    outputDevices: store.outputDevices,
-    audioFeedbackEnabled: store.settings?.audio_feedback || false,
-    postProcessModelOptions: store.postProcessModelOptions,
+    audioDevices: audioStore.audioDevices,
+    outputDevices: audioStore.outputDevices,
+    audioFeedbackEnabled: store.settings?.audio_feedback ?? false,
+    postProcessModelOptions: postProcessStore.modelOptions,
     updateSetting: store.updateSetting,
     resetSetting: store.resetSetting,
     refreshSettings: store.refreshSettings,
-    refreshAudioDevices: store.refreshAudioDevices,
-    refreshOutputDevices: store.refreshOutputDevices,
+    refreshAudioDevices: audioStore.refreshAudioDevices,
+    refreshOutputDevices: audioStore.refreshOutputDevices,
     updateBinding: store.updateBinding,
     resetBinding: store.resetBinding,
     getSetting: store.getSetting,
-    setPostProcessProvider: store.setPostProcessProvider,
-    updatePostProcessBaseUrl: store.updatePostProcessBaseUrl,
-    updatePostProcessApiKey: store.updatePostProcessApiKey,
+    // The hook is the coordination layer between stores. Cross-store side-effects
+    // (clearing cached model options) are orchestrated here, keeping each store
+    // responsible for only its own state.
+    //
+    // Clearing contract for all three mutations below: always safe regardless of
+    // outcome. The store functions swallow errors internally, so success cannot be
+    // detected here. On failure the stale list is gone; on success the changed
+    // provider/key/url starts fresh. The user re-fetches models either way.
+    setPostProcessProvider: async (providerId) => {
+      await store.setPostProcessProvider(providerId);
+      postProcessStore.clearModelOptions(providerId);
+    },
+    updatePostProcessBaseUrl: async (providerId, baseUrl) => {
+      await store.updatePostProcessBaseUrl(providerId, baseUrl);
+      postProcessStore.clearModelOptions(providerId);
+    },
+    updatePostProcessApiKey: async (providerId, apiKey) => {
+      await store.updatePostProcessApiKey(providerId, apiKey);
+      postProcessStore.clearModelOptions(providerId);
+    },
     updatePostProcessModel: store.updatePostProcessModel,
-    fetchPostProcessModels: store.fetchPostProcessModels,
+    // Loading state for model fetches is managed by callers; this is a thin pass-through.
+    fetchPostProcessModels: postProcessStore.fetchModels,
   };
 };

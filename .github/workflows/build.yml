@@ -19,7 +19,7 @@ on:
       asset-prefix:
         required: false
         type: string
-        default: "parler"
+        default: "phraser"
       asset-name-pattern:
         required: false
         type: string
@@ -80,7 +80,6 @@ jobs:
       - name: Setup Bun (standard)
         if: ${{ !(contains(inputs.platform, 'windows') && contains(inputs.target, 'aarch64')) }}
         uses: oven-sh/setup-bun@v2
-
       # Bun does not fully support Windows ARM64 yet, so we pin the baseline build.
       # See https://github.com/oven-sh/bun/issues/9824 for details.
       - name: Setup Bun (Windows ARM64 baseline)
@@ -263,22 +262,30 @@ jobs:
           fi
           echo "platform=${patched_platform}" >> $GITHUB_OUTPUT
 
+      - name: Set Tauri signing env vars
+        shell: bash
+        run: |
+          echo "TAURI_SIGNING_PRIVATE_KEY=${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}" >> $GITHUB_ENV
+          echo "TAURI_SIGNING_PRIVATE_KEY_PASSWORD=${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}" >> $GITHUB_ENV
+
+      - name: Set macOS signing env vars
+        if: contains(inputs.platform, 'macos') && inputs.sign-binaries
+        shell: bash
+        run: |
+          echo "APPLE_CERTIFICATE=${{ secrets.APPLE_CERTIFICATE }}" >> $GITHUB_ENV
+          echo "APPLE_CERTIFICATE_PASSWORD=${{ secrets.APPLE_CERTIFICATE_PASSWORD }}" >> $GITHUB_ENV
+          echo "APPLE_SIGNING_IDENTITY=${{ env.CERT_ID }}" >> $GITHUB_ENV
+          echo "APPLE_ID=${{ secrets.APPLE_ID }}" >> $GITHUB_ENV
+          echo "APPLE_ID_PASSWORD=${{ secrets.APPLE_ID_PASSWORD }}" >> $GITHUB_ENV
+          echo "APPLE_PASSWORD=${{ secrets.APPLE_PASSWORD }}" >> $GITHUB_ENV
+          echo "APPLE_TEAM_ID=${{ secrets.APPLE_TEAM_ID }}" >> $GITHUB_ENV
       - name: Build with Tauri
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          APPLE_ID: ${{ inputs.sign-binaries && secrets.APPLE_ID || '' }}
-          APPLE_ID_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_ID_PASSWORD || '' }}
-          APPLE_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ inputs.sign-binaries && secrets.APPLE_TEAM_ID || '' }}
-          APPLE_CERTIFICATE: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_SIGNING_IDENTITY: ${{ inputs.sign-binaries && env.CERT_ID || '' }}
           AZURE_CLIENT_ID: ${{ inputs.sign-binaries && secrets.AZURE_CLIENT_ID || '' }}
           AZURE_CLIENT_SECRET: ${{ inputs.sign-binaries && secrets.AZURE_CLIENT_SECRET || '' }}
           AZURE_TENANT_ID: ${{ inputs.sign-binaries && secrets.AZURE_TENANT_ID || '' }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
           WHISPER_NO_AVX: ${{ contains(inputs.platform, 'ubuntu') && !contains(inputs.platform, 'arm') && 'ON' || '' }}
           WHISPER_NO_AVX2: ${{ contains(inputs.platform, 'ubuntu') && !contains(inputs.platform, 'arm') && 'ON' || '' }}
         with:
@@ -307,49 +314,29 @@ jobs:
       - name: Remove libwayland-client.so from AppImage
         if: contains(inputs.platform, 'ubuntu')
         run: |
-          # Find the AppImage file
           APPIMAGE_PATH=$(find src-tauri/target/${{ steps.build-profile.outputs.profile }}/bundle/appimage -name "*.AppImage" | head -1)
-
           if [ -n "$APPIMAGE_PATH" ]; then
             echo "Processing AppImage: $APPIMAGE_PATH"
-
-            # Make AppImage executable
             chmod +x "$APPIMAGE_PATH"
-
-            # Extract AppImage
             cd "$(dirname "$APPIMAGE_PATH")"
             APPIMAGE_NAME=$(basename "$APPIMAGE_PATH")
-
-            # Extract using the AppImage itself
             "./$APPIMAGE_NAME" --appimage-extract
-
-            # Remove libwayland-client.so files
             echo "Removing libwayland-client.so files..."
             find squashfs-root -name "libwayland-client.so*" -type f -delete
-
-            # List what was removed for verification
             echo "Files remaining in lib directories:"
             find squashfs-root -name "lib*" -type d | head -5 | while read dir; do
               echo "Contents of $dir:"
               ls "$dir" | grep -E "(wayland|fuse)" || echo "  No wayland/fuse libraries found"
             done
-
-            # Detect architecture and get appropriate appimagetool
             if [[ "$(uname -m)" == "aarch64" ]]; then
               APPIMAGETOOL_ARCH="aarch64"
             else
               APPIMAGETOOL_ARCH="x86_64"
             fi
-
             wget -q "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-${APPIMAGETOOL_ARCH}.AppImage"
             chmod +x "appimagetool-${APPIMAGETOOL_ARCH}.AppImage"
-
-            # Repackage AppImage with no-appstream to avoid warnings
             ARCH="${APPIMAGETOOL_ARCH}" "./appimagetool-${APPIMAGETOOL_ARCH}.AppImage" --no-appstream squashfs-root "$APPIMAGE_NAME"
-
-            # Clean up
             rm -rf squashfs-root "appimagetool-${APPIMAGETOOL_ARCH}.AppImage"
-
             echo "libwayland-client.so removed from AppImage successfully"
           else
             echo "No AppImage found to process"
@@ -371,7 +358,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ inputs.asset-prefix }}-${{ inputs.target }}
-          # Default Windows builds place bundles under release/, but cross-compiles (ARM64) nest under target/<triple>/release.
           path: |
             src-tauri/target/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/msi/*.msi
             src-tauri/target/${{ inputs.target != '' && inputs.target != 'x86_64-pc-windows-msvc' && format('{0}/{1}', inputs.target, steps.build-profile.outputs.profile) || steps.build-profile.outputs.profile }}/bundle/nsis/*.exe

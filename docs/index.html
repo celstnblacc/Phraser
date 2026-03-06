@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phraser — Offline Speech-to-Text for Your Desktop</title>
+    <meta
+      name="description"
+      content="A free, open source, privacy-focused speech-to-text app that runs entirely on your computer. No cloud, no subscription."
+    />
+    <style>
+      :root {
+        --bg: #0a0a0f;
+        --surface: #12121a;
+        --border: #1e1e2e;
+        --text: #e4e4ef;
+        --text-muted: #8888a0;
+        --accent: #4d8dff;
+        --accent-hover: #6aa0ff;
+        --gradient-start: #4d8dff;
+        --gradient-end: #8b5cf6;
+      }
+
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .container {
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 0 24px;
+      }
+
+      /* Nav */
+      nav {
+        padding: 20px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      nav .container {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .nav-brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        text-decoration: none;
+        color: var(--text);
+        font-weight: 600;
+        font-size: 1.1rem;
+      }
+      .nav-brand img {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+      }
+      .nav-links {
+        display: flex;
+        gap: 24px;
+      }
+      .nav-links a {
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.9rem;
+        transition: color 0.2s;
+      }
+      .nav-links a:hover {
+        color: var(--text);
+      }
+
+      /* Hero */
+      .hero {
+        padding: 80px 0 60px;
+        text-align: center;
+      }
+      .hero h1 {
+        font-size: 2.8rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.15;
+        margin-bottom: 20px;
+      }
+      .hero h1 span {
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .hero p {
+        color: var(--text-muted);
+        font-size: 1.15rem;
+        max-width: 520px;
+        margin: 0 auto 36px;
+      }
+      .cta-group {
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 28px;
+        border-radius: 10px;
+        font-size: 0.95rem;
+        font-weight: 500;
+        text-decoration: none;
+        transition: all 0.2s;
+      }
+      .btn-primary {
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        color: #fff;
+      }
+      .btn-primary:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      .btn-secondary {
+        background: var(--surface);
+        color: var(--text);
+        border: 1px solid var(--border);
+      }
+      .btn-secondary:hover {
+        border-color: var(--accent);
+        background: #1a1a2a;
+      }
+      .platform-note {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+        margin-top: 16px;
+      }
+
+      /* How it works */
+      .how-it-works {
+        padding: 60px 0;
+      }
+      .section-title {
+        font-size: 1.5rem;
+        font-weight: 600;
+        margin-bottom: 32px;
+        text-align: center;
+      }
+      .steps {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .step {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px 16px;
+        text-align: center;
+      }
+      .step-number {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        background: linear-gradient(
+          135deg,
+          var(--gradient-start),
+          var(--gradient-end)
+        );
+        color: #fff;
+        font-weight: 700;
+        font-size: 0.9rem;
+        margin-bottom: 12px;
+      }
+      .step h3 {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-bottom: 6px;
+      }
+      .step p {
+        color: var(--text-muted);
+        font-size: 0.82rem;
+      }
+
+      /* Features */
+      .features {
+        padding: 60px 0;
+      }
+      .feature-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      .feature {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 24px;
+      }
+      .feature h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .feature p {
+        color: var(--text-muted);
+        font-size: 0.88rem;
+      }
+
+      /* Footer */
+      footer {
+        padding: 40px 0;
+        border-top: 1px solid var(--border);
+        text-align: center;
+      }
+      footer p {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+      }
+      footer a {
+        color: var(--accent);
+        text-decoration: none;
+      }
+      footer a:hover {
+        text-decoration: underline;
+      }
+
+      /* Responsive */
+      @media (max-width: 640px) {
+        .hero h1 {
+          font-size: 2rem;
+        }
+        .steps {
+          grid-template-columns: 1fr 1fr;
+        }
+        .feature-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <nav>
+      <div class="container">
+        <a href="/" class="nav-brand">
+          <img src="icon.png" alt="Phraser icon" />
+          Phraser
+        </a>
+        <div class="nav-links">
+          <a href="https://github.com/newblacc/Phraser">GitHub</a>
+          <a href="https://github.com/newblacc/Phraser/releases">Releases</a>
+        </div>
+      </div>
+    </nav>
+
+    <section class="hero">
+      <div class="container">
+        <h1>Speak. <span>Transcribe.</span> Done.</h1>
+        <p>
+          A free, open source speech-to-text app that runs entirely on your
+          computer. No cloud, no subscription, no data leaving your machine.
+        </p>
+        <div class="cta-group">
+          <a
+            href="https://github.com/newblacc/Phraser/releases/latest"
+            class="btn btn-primary"
+          >
+            <svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Download for macOS
+          </a>
+          <a
+            href="https://github.com/newblacc/Phraser"
+            class="btn btn-secondary"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <path
+                d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"
+              />
+            </svg>
+            View Source
+          </a>
+        </div>
+        <p class="platform-note">
+          macOS (Apple Silicon &amp; Intel) &middot; Linux coming soon
+        </p>
+      </div>
+    </section>
+
+    <section class="how-it-works">
+      <div class="container">
+        <h2 class="section-title">How It Works</h2>
+        <div class="steps">
+          <div class="step">
+            <div class="step-number">1</div>
+            <h3>Press</h3>
+            <p>Hit a keyboard shortcut to start recording</p>
+          </div>
+          <div class="step">
+            <div class="step-number">2</div>
+            <h3>Speak</h3>
+            <p>Say what you want to type</p>
+          </div>
+          <div class="step">
+            <div class="step-number">3</div>
+            <h3>Release</h3>
+            <p>Phraser processes your speech locally</p>
+          </div>
+          <div class="step">
+            <div class="step-number">4</div>
+            <h3>Done</h3>
+            <p>Text appears in whatever app you're using</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="features">
+      <div class="container">
+        <h2 class="section-title">Why Phraser</h2>
+        <div class="feature-grid">
+          <div class="feature">
+            <h3>Completely Private</h3>
+            <p>
+              Everything runs on your machine. Your voice never leaves your
+              computer — no cloud, no accounts, no tracking.
+            </p>
+          </div>
+          <div class="feature">
+            <h3>Free &amp; Open Source</h3>
+            <p>
+              MIT licensed. Fork it, extend it, make it yours. Accessibility
+              tools shouldn't be behind a paywall.
+            </p>
+          </div>
+          <div class="feature">
+            <h3>Multiple Models</h3>
+            <p>
+              Choose from Whisper (Small to Large) with GPU acceleration, or
+              Parakeet V3 for fast CPU-only transcription.
+            </p>
+          </div>
+          <div class="feature">
+            <h3>Smart Switching</h3>
+            <p>
+              Automatically uses a faster model for short recordings and a more
+              accurate one for longer speech.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div class="container">
+        <p>
+          Phraser is a fork of
+          <a href="https://github.com/Melvynx/Parler">Parler</a> by Melvynx,
+          based on <a href="https://github.com/cjpais/Handy">Handy</a> by cjpais
+          &middot; Built by
+          <a href="https://github.com/newblacc">newblacc</a> &middot;
+          <a href="https://github.com/newblacc/Phraser/blob/main/LICENSE"
+            >MIT License</a
+          >
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>

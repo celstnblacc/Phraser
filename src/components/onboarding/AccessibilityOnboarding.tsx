@@ -9,8 +9,8 @@ import {
 } from "tauri-plugin-macos-permissions-api";
 import { toast } from "sonner";
 import { commands } from "@/bindings";
-import { useSettingsStore } from "@/stores/settingsStore";
-import ParlerTextLogo from "../icons/ParlerTextLogo";
+import { useAudioDeviceStore } from "@/stores/audioDeviceStore";
+import PhraserTextLogo from "../icons/PhraserTextLogo";
 import { Keyboard, Mic, Check, Loader2 } from "lucide-react";
 
 interface AccessibilityOnboardingProps {
@@ -28,10 +28,10 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   onComplete,
 }) => {
   const { t } = useTranslation();
-  const refreshAudioDevices = useSettingsStore(
+  const refreshAudioDevices = useAudioDeviceStore(
     (state) => state.refreshAudioDevices,
   );
-  const refreshOutputDevices = useSettingsStore(
+  const refreshOutputDevices = useAudioDeviceStore(
     (state) => state.refreshOutputDevices,
   );
   const [isMacOS, setIsMacOS] = useState<boolean | null>(null);
@@ -231,7 +231,7 @@ const AccessibilityOnboarding: React.FC<AccessibilityOnboardingProps> = ({
   return (
     <div className="h-screen w-screen flex flex-col p-6 gap-6 items-center justify-center">
       <div className="flex flex-col items-center gap-2">
-        <ParlerTextLogo width={200} />
+        <PhraserTextLogo width={200} />
       </div>
 
       <div className="max-w-md w-full flex flex-col items-center gap-4">

@@ -213,20 +213,3 @@ pub fn register_action_shortcut(app: &AppHandle, binding: ShortcutBinding) {
         });
     }
 }
-
-/// Unregister an action shortcut (called when recording stops)
-pub fn unregister_action_shortcut(app: &AppHandle, binding: ShortcutBinding) {
-    #[cfg(target_os = "linux")]
-    {
-        let _ = (app, binding);
-        return;
-    }
-
-    #[cfg(not(target_os = "linux"))]
-    {
-        let app_clone = app.clone();
-        tauri::async_runtime::spawn(async move {
-            let _ = unregister_shortcut(&app_clone, binding);
-        });
-    }
-}

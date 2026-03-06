@@ -1,4 +1,4 @@
-use log::{debug, warn};
+use log::{debug, error, warn};
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
 use specta::Type;
@@ -8,6 +8,31 @@ use tauri_plugin_store::StoreExt;
 
 pub const APPLE_INTELLIGENCE_PROVIDER_ID: &str = "apple_intelligence";
 pub const APPLE_INTELLIGENCE_DEFAULT_MODEL_ID: &str = "Apple Intelligence";
+
+/// BCP 47 tag for Simplified Chinese (used in language selection and transcription).
+pub const LANG_SIMPLIFIED_CHINESE: &str = "zh-Hans";
+
+/// BCP 47 tag for Traditional Chinese (used in language selection and transcription).
+pub const LANG_TRADITIONAL_CHINESE: &str = "zh-Hant";
+
+/// Provider IDs — single source of truth; used in routing logic across llm_client, actions, and
+/// transcription. Any rename must happen here only.
+pub const PROVIDER_ID_ANTHROPIC: &str = "anthropic";
+pub const PROVIDER_ID_GEMINI: &str = "gemini";
+#[allow(dead_code)]
+pub const PROVIDER_ID_OPENAI: &str = "openai";
+#[allow(dead_code)]
+pub const PROVIDER_ID_OPENROUTER: &str = "openrouter";
+#[allow(dead_code)]
+pub const PROVIDER_ID_GROQ: &str = "groq";
+#[allow(dead_code)]
+pub const PROVIDER_ID_CEREBRAS: &str = "cerebras";
+#[allow(dead_code)]
+pub const PROVIDER_ID_ZAI: &str = "zai";
+#[allow(dead_code)]
+pub const PROVIDER_ID_OLLAMA: &str = "ollama";
+#[allow(dead_code)]
+pub const PROVIDER_ID_CUSTOM: &str = "custom";
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "lowercase")]
@@ -118,6 +143,8 @@ pub struct PostProcessProvider {
     pub base_url: String,
     #[serde(default)]
     pub allow_base_url_edit: bool,
+    #[serde(default = "default_true")]
+    pub requires_api_key: bool,
     #[serde(default)]
     pub models_endpoint: Option<String>,
     #[serde(default)]
@@ -294,7 +321,6 @@ impl Default for TypingTool {
     }
 }
 
-/* still handy for composing the initial JSON in the store ------------- */
 #[derive(Serialize, Deserialize, Debug, Clone, Type)]
 pub struct AppSettings {
     pub bindings: HashMap<String, ShortcutBinding>,
@@ -445,7 +471,7 @@ fn default_paste_delay_ms() -> u64 {
 }
 
 fn default_auto_submit() -> bool {
-    false
+    true
 }
 
 fn default_history_limit() -> usize {
@@ -482,6 +508,10 @@ fn default_post_process_provider_id() -> String {
     "openai".to_string()
 }
 
+fn default_true() -> bool {
+    true
+}
+
 fn default_post_process_providers() -> Vec<PostProcessProvider> {
     let mut providers = vec![
         PostProcessProvider {
@@ -489,6 +519,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "OpenAI".to_string(),
             base_url: "https://api.openai.com/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -497,6 +528,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Z.AI".to_string(),
             base_url: "https://api.z.ai/api/paas/v4".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -505,6 +537,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "OpenRouter".to_string(),
             base_url: "https://openrouter.ai/api/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -513,6 +546,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Anthropic".to_string(),
             base_url: "https://api.anthropic.com/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: false,
         },
@@ -521,6 +555,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Groq".to_string(),
             base_url: "https://api.groq.com/openai/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: false,
         },
@@ -529,6 +564,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Cerebras".to_string(),
             base_url: "https://api.cerebras.ai/v1".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: true,
             models_endpoint: Some("/models".to_string()),
             supports_structured_output: true,
         },
@@ -545,6 +581,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
             label: "Apple Intelligence".to_string(),
             base_url: "apple-intelligence://local".to_string(),
             allow_base_url_edit: false,
+            requires_api_key: false,
             models_endpoint: None,
             supports_structured_output: true,
         });
@@ -555,7 +592,18 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
         label: "Gemini".to_string(),
         base_url: "https://generativelanguage.googleapis.com/v1beta".to_string(),
         allow_base_url_edit: false,
+        requires_api_key: true,
         models_endpoint: None,
+        supports_structured_output: false,
+    });
+
+    providers.push(PostProcessProvider {
+        id: "ollama".to_string(),
+        label: "Ollama".to_string(),
+        base_url: "http://localhost:11434/v1".to_string(),
+        allow_base_url_edit: true,
+        requires_api_key: false,
+        models_endpoint: Some("/models".to_string()),
         supports_structured_output: false,
     });
 
@@ -565,6 +613,7 @@ fn default_post_process_providers() -> Vec<PostProcessProvider> {
         label: "Custom".to_string(),
         base_url: "http://localhost:11434/v1".to_string(),
         allow_base_url_edit: true,
+        requires_api_key: false,
         models_endpoint: Some("/models".to_string()),
         supports_structured_output: false,
     });
@@ -628,15 +677,13 @@ fn ensure_post_process_defaults(settings: &mut AppSettings) -> bool {
             .find(|p| p.id == provider.id)
         {
             Some(existing) => {
-                // Sync supports_structured_output field for existing providers (migration)
+                // Sync immutable fields from the canonical default (migration).
                 if existing.supports_structured_output != provider.supports_structured_output {
-                    debug!(
-                        "Updating supports_structured_output for provider '{}' from {} to {}",
-                        provider.id,
-                        existing.supports_structured_output,
-                        provider.supports_structured_output
-                    );
                     existing.supports_structured_output = provider.supports_structured_output;
+                    changed = true;
+                }
+                if existing.requires_api_key != provider.requires_api_key {
+                    existing.requires_api_key = provider.requires_api_key;
                     changed = true;
                 }
             }
@@ -804,87 +851,83 @@ impl AppSettings {
     }
 }
 
-pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
-    // Initialize store
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
+/// Serialize settings to JSON and persist via the store.
+/// `AppSettings` derives `Serialize`, so failure here is a programming error — log it loudly.
+fn persist_settings(store: &tauri_plugin_store::Store<tauri::Wry>, settings: &AppSettings) {
+    match serde_json::to_value(settings) {
+        Ok(v) => store.set("settings", v),
+        Err(e) => error!(
+            "BUG: Failed to serialize AppSettings — settings not saved: {}",
+            e
+        ),
+    }
+}
 
-    let mut settings = if let Some(settings_value) = store.get("settings") {
-        // Parse the entire settings object
-        match serde_json::from_value::<AppSettings>(settings_value) {
-            Ok(mut settings) => {
-                debug!("Found existing settings");
-                let default_settings = get_default_settings();
-                let mut updated = false;
-
-                // Merge default bindings into existing settings
-                for (key, value) in default_settings.bindings {
-                    if !settings.bindings.contains_key(&key) {
-                        debug!("Adding missing binding: {}", key);
-                        settings.bindings.insert(key, value);
-                        updated = true;
+/// Load or create settings from the store, merge missing bindings, and apply post-process
+/// defaults. Used at startup (`load_or_create_app_settings`) and on every read (`get_settings`).
+fn load_settings_from_store(
+    store: &tauri_plugin_store::Store<tauri::Wry>,
+    fill_missing_bindings: bool,
+) -> AppSettings {
+    let mut settings = if let Some(value) = store.get("settings") {
+        match serde_json::from_value::<AppSettings>(value) {
+            Ok(mut s) => {
+                if fill_missing_bindings {
+                    let defaults = get_default_settings();
+                    let mut updated = false;
+                    for (key, value) in defaults.bindings {
+                        if !s.bindings.contains_key(&key) {
+                            debug!("Adding missing binding: {}", key);
+                            s.bindings.insert(key, value);
+                            updated = true;
+                        }
+                    }
+                    if updated {
+                        debug!("Settings updated with new bindings");
+                        persist_settings(store, &s);
                     }
                 }
-
-                if updated {
-                    debug!("Settings updated with new bindings");
-                    store.set("settings", serde_json::to_value(&settings).unwrap());
-                }
-
-                settings
+                s
             }
             Err(e) => {
-                warn!("Failed to parse settings: {}", e);
-                // Fall back to default settings if parsing fails
-                let default_settings = get_default_settings();
-                store.set("settings", serde_json::to_value(&default_settings).unwrap());
-                default_settings
+                warn!("Failed to parse settings: {}. Falling back to defaults.", e);
+                let defaults = get_default_settings();
+                persist_settings(store, &defaults);
+                defaults
             }
         }
     } else {
-        let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
-        default_settings
+        let defaults = get_default_settings();
+        persist_settings(store, &defaults);
+        defaults
     };
 
     if ensure_post_process_defaults(&mut settings) {
-        store.set("settings", serde_json::to_value(&settings).unwrap());
+        persist_settings(store, &settings);
     }
 
     settings
+}
+
+pub fn load_or_create_app_settings(app: &AppHandle) -> AppSettings {
+    let store = app
+        .store(SETTINGS_STORE_PATH)
+        .expect("Failed to initialize store");
+    load_settings_from_store(&store, true)
 }
 
 pub fn get_settings(app: &AppHandle) -> AppSettings {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
-
-    let mut settings = if let Some(settings_value) = store.get("settings") {
-        serde_json::from_value::<AppSettings>(settings_value).unwrap_or_else(|_| {
-            let default_settings = get_default_settings();
-            store.set("settings", serde_json::to_value(&default_settings).unwrap());
-            default_settings
-        })
-    } else {
-        let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
-        default_settings
-    };
-
-    if ensure_post_process_defaults(&mut settings) {
-        store.set("settings", serde_json::to_value(&settings).unwrap());
-    }
-
-    settings
+    load_settings_from_store(&store, false)
 }
 
 pub fn write_settings(app: &AppHandle, settings: AppSettings) {
     let store = app
         .store(SETTINGS_STORE_PATH)
         .expect("Failed to initialize store");
-
-    store.set("settings", serde_json::to_value(&settings).unwrap());
+    persist_settings(&store, &settings);
 }
 
 pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
@@ -893,12 +936,9 @@ pub fn get_bindings(app: &AppHandle) -> HashMap<String, ShortcutBinding> {
     settings.bindings
 }
 
-pub fn get_stored_binding(app: &AppHandle, id: &str) -> ShortcutBinding {
+pub fn get_stored_binding(app: &AppHandle, id: &str) -> Option<ShortcutBinding> {
     let bindings = get_bindings(app);
-
-    let binding = bindings.get(id).unwrap().clone();
-
-    binding
+    bindings.get(id).cloned()
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {
@@ -916,9 +956,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn default_settings_disable_auto_submit() {
+    fn default_settings_enable_auto_submit() {
         let settings = get_default_settings();
-        assert!(!settings.auto_submit);
+        assert!(settings.auto_submit);
         assert_eq!(settings.auto_submit_key, AutoSubmitKey::Enter);
     }
 
@@ -991,5 +1031,236 @@ mod tests {
         let mut settings = get_default_settings();
         let changed = ensure_post_process_defaults(&mut settings);
         assert!(!changed);
+    }
+
+    // --- ModelUnloadTimeout tests ---
+
+    #[test]
+    fn model_unload_timeout_never_returns_none() {
+        assert_eq!(ModelUnloadTimeout::Never.to_minutes(), None);
+        assert_eq!(ModelUnloadTimeout::Never.to_seconds(), None);
+    }
+
+    #[test]
+    fn model_unload_timeout_immediately_returns_zero() {
+        assert_eq!(ModelUnloadTimeout::Immediately.to_minutes(), Some(0));
+        assert_eq!(ModelUnloadTimeout::Immediately.to_seconds(), Some(0));
+    }
+
+    #[test]
+    fn model_unload_timeout_conversions() {
+        assert_eq!(ModelUnloadTimeout::Min2.to_minutes(), Some(2));
+        assert_eq!(ModelUnloadTimeout::Min2.to_seconds(), Some(120));
+        assert_eq!(ModelUnloadTimeout::Min5.to_minutes(), Some(5));
+        assert_eq!(ModelUnloadTimeout::Min5.to_seconds(), Some(300));
+        assert_eq!(ModelUnloadTimeout::Min10.to_seconds(), Some(600));
+        assert_eq!(ModelUnloadTimeout::Min15.to_seconds(), Some(900));
+        assert_eq!(ModelUnloadTimeout::Hour1.to_minutes(), Some(60));
+        assert_eq!(ModelUnloadTimeout::Hour1.to_seconds(), Some(3600));
+    }
+
+    #[test]
+    fn model_unload_timeout_sec5_debug() {
+        assert_eq!(ModelUnloadTimeout::Sec5.to_minutes(), Some(0));
+        assert_eq!(ModelUnloadTimeout::Sec5.to_seconds(), Some(5));
+    }
+
+    // --- SoundTheme tests ---
+
+    #[test]
+    fn sound_theme_paths() {
+        assert_eq!(
+            SoundTheme::Marimba.to_start_path(),
+            "resources/marimba_start.wav"
+        );
+        assert_eq!(
+            SoundTheme::Marimba.to_stop_path(),
+            "resources/marimba_stop.wav"
+        );
+        assert_eq!(SoundTheme::Pop.to_start_path(), "resources/pop_start.wav");
+        assert_eq!(SoundTheme::Pop.to_stop_path(), "resources/pop_stop.wav");
+        assert_eq!(
+            SoundTheme::Custom.to_start_path(),
+            "resources/custom_start.wav"
+        );
+        assert_eq!(
+            SoundTheme::Custom.to_stop_path(),
+            "resources/custom_stop.wav"
+        );
+    }
+
+    // --- LogLevel serde round-trip tests ---
+
+    #[test]
+    fn log_level_deserializes_from_string() {
+        let json = r#""trace""#;
+        let level: LogLevel = serde_json::from_str(json).unwrap();
+        assert_eq!(level, LogLevel::Trace);
+    }
+
+    #[test]
+    fn log_level_deserializes_from_integer() {
+        // Old numeric format: 1 = Trace, 2 = Debug, etc.
+        let json = "1";
+        let level: LogLevel = serde_json::from_str(json).unwrap();
+        assert_eq!(level, LogLevel::Trace);
+    }
+
+    #[test]
+    fn log_level_round_trip() {
+        for level in [
+            LogLevel::Trace,
+            LogLevel::Debug,
+            LogLevel::Info,
+            LogLevel::Warn,
+            LogLevel::Error,
+        ] {
+            let json = serde_json::to_string(&level).unwrap();
+            let deserialized: LogLevel = serde_json::from_str(&json).unwrap();
+            assert_eq!(level, deserialized);
+        }
+    }
+
+    // --- Default settings sanity ---
+
+    #[test]
+    fn default_settings_has_bindings() {
+        let settings = get_default_settings();
+        assert!(!settings.bindings.is_empty());
+        assert!(settings.bindings.contains_key("transcribe"));
+    }
+
+    #[test]
+    fn default_settings_overlay_position_is_valid() {
+        let settings = get_default_settings();
+        let json = serde_json::to_value(&settings.overlay_position).unwrap();
+        assert!(
+            json.is_string(),
+            "overlay_position should serialize to a string variant"
+        );
+    }
+
+    #[test]
+    fn default_settings_reasonable_history_limit() {
+        let settings = get_default_settings();
+        assert!(settings.history_limit > 0);
+        assert!(settings.history_limit <= 10000);
+    }
+
+    #[test]
+    fn default_settings_word_correction_threshold_in_range() {
+        let settings = get_default_settings();
+        assert!(settings.word_correction_threshold >= 0.0);
+        assert!(settings.word_correction_threshold <= 1.0);
+    }
+
+    #[test]
+    fn default_settings_serializes_to_json() {
+        let settings = get_default_settings();
+        let json = serde_json::to_string(&settings);
+        assert!(json.is_ok(), "Default settings should serialize to JSON");
+    }
+
+    #[test]
+    fn default_settings_round_trip_json() {
+        let settings = get_default_settings();
+        let json = serde_json::to_string(&settings).unwrap();
+        let deserialized: AppSettings = serde_json::from_str(&json).unwrap();
+        assert_eq!(settings.auto_submit, deserialized.auto_submit);
+        assert_eq!(settings.push_to_talk, deserialized.push_to_talk);
+        assert_eq!(settings.selected_language, deserialized.selected_language);
+    }
+
+    // --- Enum serde tests ---
+
+    #[test]
+    fn paste_method_serde_round_trip() {
+        for method in [
+            PasteMethod::CtrlV,
+            PasteMethod::Direct,
+            PasteMethod::None,
+            PasteMethod::ShiftInsert,
+            PasteMethod::CtrlShiftV,
+            PasteMethod::ExternalScript,
+        ] {
+            let json = serde_json::to_string(&method).unwrap();
+            let deserialized: PasteMethod = serde_json::from_str(&json).unwrap();
+            assert_eq!(method, deserialized);
+        }
+    }
+
+    #[test]
+    fn clipboard_handling_serde_round_trip() {
+        for handling in [
+            ClipboardHandling::DontModify,
+            ClipboardHandling::CopyToClipboard,
+        ] {
+            let json = serde_json::to_string(&handling).unwrap();
+            let deserialized: ClipboardHandling = serde_json::from_str(&json).unwrap();
+            assert_eq!(handling, deserialized);
+        }
+    }
+
+    #[test]
+    fn auto_submit_key_serde_round_trip() {
+        for key in [
+            AutoSubmitKey::Enter,
+            AutoSubmitKey::CtrlEnter,
+            AutoSubmitKey::CmdEnter,
+        ] {
+            let json = serde_json::to_string(&key).unwrap();
+            let deserialized: AutoSubmitKey = serde_json::from_str(&json).unwrap();
+            assert_eq!(key, deserialized);
+        }
+    }
+
+    #[test]
+    fn overlay_position_serde_round_trip() {
+        for pos in [
+            OverlayPosition::None,
+            OverlayPosition::Top,
+            OverlayPosition::Bottom,
+        ] {
+            let json = serde_json::to_string(&pos).unwrap();
+            let deserialized: OverlayPosition = serde_json::from_str(&json).unwrap();
+            assert_eq!(pos, deserialized);
+        }
+    }
+
+    #[test]
+    fn recording_retention_period_serde_round_trip() {
+        for period in [
+            RecordingRetentionPeriod::Never,
+            RecordingRetentionPeriod::PreserveLimit,
+            RecordingRetentionPeriod::Days3,
+            RecordingRetentionPeriod::Weeks2,
+            RecordingRetentionPeriod::Months3,
+        ] {
+            let json = serde_json::to_string(&period).unwrap();
+            let deserialized: RecordingRetentionPeriod = serde_json::from_str(&json).unwrap();
+            assert_eq!(period, deserialized);
+        }
+    }
+
+    // --- provider ID constants ---
+
+    #[test]
+    fn provider_id_constants_match_default_providers() {
+        let providers = default_post_process_providers();
+        let ids: Vec<&str> = providers.iter().map(|p| p.id.as_str()).collect();
+        assert!(ids.contains(&PROVIDER_ID_OPENAI));
+        assert!(ids.contains(&PROVIDER_ID_ANTHROPIC));
+        assert!(ids.contains(&PROVIDER_ID_GEMINI));
+        assert!(ids.contains(&PROVIDER_ID_OPENROUTER));
+        assert!(ids.contains(&PROVIDER_ID_GROQ));
+        assert!(ids.contains(&PROVIDER_ID_CEREBRAS));
+        assert!(ids.contains(&PROVIDER_ID_ZAI));
+        assert!(ids.contains(&PROVIDER_ID_CUSTOM));
+    }
+
+    #[test]
+    fn lang_constants_match_expected_bcp47_tags() {
+        assert_eq!(LANG_SIMPLIFIED_CHINESE, "zh-Hans");
+        assert_eq!(LANG_TRADITIONAL_CHINESE, "zh-Hant");
     }
 }

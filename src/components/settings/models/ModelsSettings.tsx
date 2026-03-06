@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { ask } from "@tauri-apps/plugin-dialog";
 import { ChevronDown, Globe, RefreshCcw, X } from "lucide-react";
@@ -26,11 +32,13 @@ const ProcessingModelsSection: React.FC = () => {
     refreshSettings,
     fetchPostProcessModels,
     updatePostProcessApiKey,
+    updatePostProcessBaseUrl,
     postProcessModelOptions,
   } = useSettings();
   const [isAdding, setIsAdding] = useState(false);
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
   const [selectedModel, setSelectedModel] = useState("");
   const [isFetching, setIsFetching] = useState(false);
 
@@ -48,15 +56,18 @@ const ProcessingModelsSection: React.FC = () => {
     [availableModels],
   );
 
+  const selectedProvider = providers.find((p) => p.id === selectedProviderId);
+
   const handleProviderChange = useCallback(
     (providerId: string) => {
       setSelectedProviderId(providerId);
       setSelectedModel("");
-      const existingKey =
-        settings?.post_process_api_keys?.[providerId] ?? "";
+      const existingKey = settings?.post_process_api_keys?.[providerId] ?? "";
       setApiKey(existingKey);
+      const provider = providers.find((p) => p.id === providerId);
+      setBaseUrl(provider?.base_url ?? "");
     },
-    [settings],
+    [settings, providers],
   );
 
   const handleFetchModels = useCallback(async () => {
@@ -64,13 +75,24 @@ const ProcessingModelsSection: React.FC = () => {
     if (apiKey.trim()) {
       await updatePostProcessApiKey(selectedProviderId, apiKey.trim());
     }
+    if (selectedProvider?.allow_base_url_edit && baseUrl.trim()) {
+      await updatePostProcessBaseUrl(selectedProviderId, baseUrl.trim());
+    }
     setIsFetching(true);
     try {
       await fetchPostProcessModels(selectedProviderId);
     } finally {
       setIsFetching(false);
     }
-  }, [selectedProviderId, apiKey, fetchPostProcessModels, updatePostProcessApiKey]);
+  }, [
+    selectedProviderId,
+    apiKey,
+    baseUrl,
+    selectedProvider,
+    fetchPostProcessModels,
+    updatePostProcessApiKey,
+    updatePostProcessBaseUrl,
+  ]);
 
   const handleSave = useCallback(async () => {
     if (!selectedProviderId || !selectedModel) return;
@@ -109,6 +131,7 @@ const ProcessingModelsSection: React.FC = () => {
     setSelectedProviderId("");
     setSelectedModel("");
     setApiKey("");
+    setBaseUrl("");
   }, []);
 
   return (
@@ -160,20 +183,37 @@ const ProcessingModelsSection: React.FC = () => {
 
           {selectedProviderId && (
             <>
-              <div className="space-y-1">
-                <label className="text-sm font-semibold">
-                  {t("settings.models.processingModels.apiKey")}
-                </label>
-                <Input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder={t(
-                    "settings.models.processingModels.apiKeyPlaceholder",
-                  )}
-                  variant="compact"
-                />
-              </div>
+              {selectedProvider?.allow_base_url_edit && (
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold">
+                    {t("settings.models.processingModels.baseUrl")}
+                  </label>
+                  <Input
+                    type="text"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder="http://localhost:11434/v1"
+                    variant="compact"
+                  />
+                </div>
+              )}
+
+              {selectedProvider?.requires_api_key !== false && (
+                <div className="space-y-1">
+                  <label className="text-sm font-semibold">
+                    {t("settings.models.processingModels.apiKey")}
+                  </label>
+                  <Input
+                    type="password"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    placeholder={t(
+                      "settings.models.processingModels.apiKeyPlaceholder",
+                    )}
+                    variant="compact"
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
                 <label className="text-sm font-semibold">
@@ -204,7 +244,11 @@ const ProcessingModelsSection: React.FC = () => {
                   )}
                   <button
                     onClick={handleFetchModels}
-                    disabled={isFetching || !apiKey.trim()}
+                    disabled={
+                      isFetching ||
+                      (selectedProvider?.requires_api_key !== false &&
+                        !apiKey.trim())
+                    }
                     className="flex items-center justify-center h-8 w-8 rounded-md bg-mid-gray/10 hover:bg-mid-gray/20 transition-colors disabled:opacity-40"
                     title={t("settings.models.processingModels.fetchModels")}
                   >

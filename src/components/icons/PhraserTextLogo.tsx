@@ -1,25 +1,22 @@
-const ParlerTextLogo = ({
+const PhraserTextLogo = ({
   width,
   className,
 }: {
   width?: number;
-  height?: number;
   className?: string;
 }) => {
   return (
     <div
-      className={className}
+      className={`font-normal tracking-[2px]${className ? ` ${className}` : ""}`}
       style={{
         fontFamily: "'Geist Pixel Circle', monospace",
         fontSize: width ? width / 4.2 : 28,
-        fontWeight: "normal",
-        letterSpacing: "2px",
         width,
       }}
     >
-      <span className="text-logo-primary">PARLER</span>
+      <span className="text-logo-primary">PHRASER</span>
     </div>
   );
 };
 
-export default ParlerTextLogo;
+export default PhraserTextLogo;

@@ -1,6 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { AppSettings as Settings, AudioDevice } from "@/bindings";
+import type { AppSettings as Settings } from "@/bindings";
 import { commands } from "@/bindings";
 
 interface SettingsStore {
@@ -8,10 +8,7 @@ interface SettingsStore {
   defaultSettings: Settings | null;
   isLoading: boolean;
   isUpdating: Record<string, boolean>;
-  audioDevices: AudioDevice[];
-  outputDevices: AudioDevice[];
   customSounds: { start: boolean; stop: boolean };
-  postProcessModelOptions: Record<string, string[]>;
 
   // Actions
   initialize: () => Promise<void>;
@@ -22,8 +19,6 @@ interface SettingsStore {
   ) => Promise<void>;
   resetSetting: (key: keyof Settings) => Promise<void>;
   refreshSettings: () => Promise<void>;
-  refreshAudioDevices: () => Promise<void>;
-  refreshOutputDevices: () => Promise<void>;
   updateBinding: (id: string, binding: string) => Promise<void>;
   resetBinding: (id: string) => Promise<void>;
   getSetting: <K extends keyof Settings>(key: K) => Settings[K] | undefined;
@@ -45,27 +40,17 @@ interface SettingsStore {
     apiKey: string,
   ) => Promise<void>;
   updatePostProcessModel: (providerId: string, model: string) => Promise<void>;
-  fetchPostProcessModels: (providerId: string) => Promise<string[]>;
-  setPostProcessModelOptions: (providerId: string, models: string[]) => void;
 
   // Internal state setters
   setSettings: (settings: Settings | null) => void;
   setDefaultSettings: (defaultSettings: Settings | null) => void;
   setLoading: (loading: boolean) => void;
   setUpdating: (key: string, updating: boolean) => void;
-  setAudioDevices: (devices: AudioDevice[]) => void;
-  setOutputDevices: (devices: AudioDevice[]) => void;
   setCustomSounds: (sounds: { start: boolean; stop: boolean }) => void;
 }
 
 // Note: Default settings are now fetched from Rust via commands.getDefaultSettings()
 // This ensures platform-specific defaults (like overlay_position, shortcuts, paste_method) work correctly
-
-const DEFAULT_AUDIO_DEVICE: AudioDevice = {
-  index: "default",
-  name: "Default",
-  is_default: true,
-};
 
 const settingUpdaters: {
   [K in keyof Settings]?: (value: Settings[K]) => Promise<unknown>;
@@ -129,7 +114,14 @@ const settingUpdaters: {
     commands.changeMuteWhileRecordingSetting(value as boolean),
   append_trailing_space: (value) =>
     commands.changeAppendTrailingSpaceSetting(value as boolean),
-  log_level: (value) => commands.setLogLevel(value as any),
+  log_level: (value) =>
+    commands.setLogLevel(value as NonNullable<Settings["log_level"]>),
+  model_unload_timeout: (value) =>
+    commands.setModelUnloadTimeout(
+      value as NonNullable<Settings["model_unload_timeout"]>,
+    ),
+  keyboard_implementation: (value) =>
+    commands.changeKeyboardImplementationSetting(value as string),
   app_language: (value) => commands.changeAppLanguageSetting(value as string),
   experimental_enabled: (value) =>
     commands.changeExperimentalEnabledSetting(value as boolean),
@@ -150,10 +142,7 @@ export const useSettingsStore = create<SettingsStore>()(
     defaultSettings: null,
     isLoading: true,
     isUpdating: {},
-    audioDevices: [],
-    outputDevices: [],
     customSounds: { start: false, stop: false },
-    postProcessModelOptions: {},
 
     // Internal setters
     setSettings: (settings) => set({ settings }),
@@ -163,8 +152,6 @@ export const useSettingsStore = create<SettingsStore>()(
       set((state) => ({
         isUpdating: { ...state.isUpdating, [key]: updating },
       })),
-    setAudioDevices: (audioDevices) => set({ audioDevices }),
-    setOutputDevices: (outputDevices) => set({ outputDevices }),
     setCustomSounds: (customSounds) => set({ customSounds }),
 
     // Getters
@@ -193,48 +180,6 @@ export const useSettingsStore = create<SettingsStore>()(
       } catch (error) {
         console.error("Failed to load settings:", error);
         set({ isLoading: false });
-      }
-    },
-
-    // Load audio devices
-    refreshAudioDevices: async () => {
-      try {
-        const result = await commands.getAvailableMicrophones();
-        if (result.status === "ok") {
-          const devicesWithDefault = [
-            DEFAULT_AUDIO_DEVICE,
-            ...result.data.filter(
-              (d) => d.name !== "Default" && d.name !== "default",
-            ),
-          ];
-          set({ audioDevices: devicesWithDefault });
-        } else {
-          set({ audioDevices: [DEFAULT_AUDIO_DEVICE] });
-        }
-      } catch (error) {
-        console.error("Failed to load audio devices:", error);
-        set({ audioDevices: [DEFAULT_AUDIO_DEVICE] });
-      }
-    },
-
-    // Load output devices
-    refreshOutputDevices: async () => {
-      try {
-        const result = await commands.getAvailableOutputDevices();
-        if (result.status === "ok") {
-          const devicesWithDefault = [
-            DEFAULT_AUDIO_DEVICE,
-            ...result.data.filter(
-              (d) => d.name !== "Default" && d.name !== "default",
-            ),
-          ];
-          set({ outputDevices: devicesWithDefault });
-        } else {
-          set({ outputDevices: [DEFAULT_AUDIO_DEVICE] });
-        }
-      } catch (error) {
-        console.error("Failed to load output devices:", error);
-        set({ outputDevices: [DEFAULT_AUDIO_DEVICE] });
       }
     },
 
@@ -294,7 +239,7 @@ export const useSettingsStore = create<SettingsStore>()(
       if (defaultSettings) {
         const defaultValue = defaultSettings[key];
         if (defaultValue !== undefined) {
-          await get().updateSetting(key, defaultValue as any);
+          await get().updateSetting(key, defaultValue as Settings[typeof key]);
         }
       }
     },
@@ -381,12 +326,7 @@ export const useSettingsStore = create<SettingsStore>()(
     },
 
     setPostProcessProvider: async (providerId) => {
-      const {
-        settings,
-        setUpdating,
-        refreshSettings,
-        setPostProcessModelOptions,
-      } = get();
+      const { settings, setUpdating, refreshSettings } = get();
       const updateKey = "post_process_provider_id";
       const previousId = settings?.post_process_provider_id ?? null;
 
@@ -399,10 +339,6 @@ export const useSettingsStore = create<SettingsStore>()(
             : null,
         }));
       }
-
-      // Clear cached model options for the new provider so the dropdown
-      // doesn't show stale models from a previous fetch or base_url.
-      setPostProcessModelOptions(providerId, []);
 
       try {
         await commands.setPostProcessProvider(providerId);
@@ -480,14 +416,6 @@ export const useSettingsStore = create<SettingsStore>()(
           return;
         }
 
-        // Clear cached model options only after both backend writes succeed.
-        set((state) => ({
-          postProcessModelOptions: {
-            ...state.postProcessModelOptions,
-            [providerId]: [],
-          },
-        }));
-
         // Single refresh after both backend writes.
         await refreshSettings();
       } catch (error) {
@@ -498,52 +426,12 @@ export const useSettingsStore = create<SettingsStore>()(
     },
 
     updatePostProcessApiKey: async (providerId, apiKey) => {
-      // Clear cached models when API key changes - user should click refresh after
-      set((state) => ({
-        postProcessModelOptions: {
-          ...state.postProcessModelOptions,
-          [providerId]: [],
-        },
-      }));
       return get().updatePostProcessSetting("api_key", providerId, apiKey);
     },
 
     updatePostProcessModel: async (providerId, model) => {
       return get().updatePostProcessSetting("model", providerId, model);
     },
-
-    fetchPostProcessModels: async (providerId) => {
-      const updateKey = `post_process_models_fetch:${providerId}`;
-      const { setUpdating, setPostProcessModelOptions } = get();
-
-      setUpdating(updateKey, true);
-
-      try {
-        // Call Tauri backend command instead of fetch
-        const result = await commands.fetchPostProcessModels(providerId);
-        if (result.status === "ok") {
-          setPostProcessModelOptions(providerId, result.data);
-          return result.data;
-        } else {
-          console.error("Failed to fetch models:", result.error);
-          return [];
-        }
-      } catch (error) {
-        console.error("Failed to fetch models:", error);
-        // Don't cache empty array on error - let user retry
-        return [];
-      } finally {
-        setUpdating(updateKey, false);
-      }
-    },
-
-    setPostProcessModelOptions: (providerId, models) =>
-      set((state) => ({
-        postProcessModelOptions: {
-          ...state.postProcessModelOptions,
-          [providerId]: models,
-        },
-      })),
 
     // Load default settings from Rust
     loadDefaultSettings: async () => {
@@ -563,10 +451,9 @@ export const useSettingsStore = create<SettingsStore>()(
     initialize: async () => {
       const { refreshSettings, checkCustomSounds, loadDefaultSettings } = get();
 
-      // Note: Audio devices are NOT refreshed here. The frontend (App.tsx)
-      // is responsible for calling refreshAudioDevices/refreshOutputDevices
-      // after onboarding completes. This avoids triggering permission dialogs
-      // on macOS before the user is ready.
+      // Audio devices are NOT loaded here — that's audioDeviceStore's responsibility.
+      // App.tsx calls audioDeviceStore after onboarding to avoid triggering macOS
+      // permission dialogs before the user is ready.
       await Promise.all([
         loadDefaultSettings(),
         refreshSettings(),

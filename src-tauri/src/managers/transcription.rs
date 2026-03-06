@@ -1,6 +1,8 @@
 use crate::audio_toolkit::{apply_custom_words, filter_transcription_output};
 use crate::managers::model::{EngineType, ModelManager};
-use crate::settings::{get_settings, ModelUnloadTimeout};
+use crate::settings::{
+    get_settings, ModelUnloadTimeout, LANG_SIMPLIFIED_CHINESE, LANG_TRADITIONAL_CHINESE,
+};
 use anyhow::Result;
 use log::{debug, error, info, warn};
 use serde::Serialize;
@@ -441,7 +443,7 @@ impl TranscriptionManager {
             Ordering::Relaxed,
         );
 
-        let st = std::time::Instant::now();
+        let start_time = std::time::Instant::now();
 
         debug!("Audio vector length: {}", audio.len());
 
@@ -500,10 +502,9 @@ impl TranscriptionManager {
                 };
                 let final_result = filter_transcription_output(&corrected);
 
-                let et = std::time::Instant::now();
                 info!(
                     "Gemini transcription completed in {}ms",
-                    (et - st).as_millis()
+                    start_time.elapsed().as_millis()
                 );
 
                 self.maybe_unload_immediately("gemini transcription");
@@ -539,8 +540,9 @@ impl TranscriptionManager {
                             let whisper_language = if settings.selected_language == "auto" {
                                 None
                             } else {
-                                let normalized = if settings.selected_language == "zh-Hans"
-                                    || settings.selected_language == "zh-Hant"
+                                let normalized = if settings.selected_language
+                                    == LANG_SIMPLIFIED_CHINESE
+                                    || settings.selected_language == LANG_TRADITIONAL_CHINESE
                                 {
                                     "zh".to_string()
                                 } else {
@@ -580,7 +582,9 @@ impl TranscriptionManager {
                             }),
                         LoadedEngine::SenseVoice(sense_voice_engine) => {
                             let language = match settings.selected_language.as_str() {
-                                "zh" | "zh-Hans" | "zh-Hant" => SenseVoiceLanguage::Chinese,
+                                "zh" | LANG_SIMPLIFIED_CHINESE | LANG_TRADITIONAL_CHINESE => {
+                                    SenseVoiceLanguage::Chinese
+                                }
                                 "en" => SenseVoiceLanguage::English,
                                 "ja" => SenseVoiceLanguage::Japanese,
                                 "ko" => SenseVoiceLanguage::Korean,
@@ -667,7 +671,6 @@ impl TranscriptionManager {
         // Filter out filler words and hallucinations
         let filtered_result = filter_transcription_output(&corrected_result);
 
-        let et = std::time::Instant::now();
         let translation_note = if settings.translate_to_english {
             " (translated)"
         } else {
@@ -675,21 +678,19 @@ impl TranscriptionManager {
         };
         info!(
             "Transcription completed in {}ms{}",
-            (et - st).as_millis(),
+            start_time.elapsed().as_millis(),
             translation_note
         );
 
-        let final_result = filtered_result;
-
-        if final_result.is_empty() {
+        if filtered_result.is_empty() {
             info!("Transcription result is empty");
         } else {
-            info!("Transcription result: {}", final_result);
+            info!("Transcription result: {}", filtered_result);
         }
 
         self.maybe_unload_immediately("transcription");
 
-        Ok(final_result)
+        Ok(filtered_result)
     }
 }
 

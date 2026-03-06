@@ -52,6 +52,10 @@ pub fn init_shortcuts(app: &AppHandle) {
             }
         }
     }
+
+    // Action shortcuts (Ctrl+1…9) are always-on global shortcuts so users can
+    // press Ctrl+N from any state to start recording with that action pre-selected.
+    register_action_shortcuts(app);
 }
 
 /// Register the cancel shortcut (called when recording starts)
@@ -93,29 +97,6 @@ pub fn register_action_shortcuts(app: &AppHandle) {
             }
             KeyboardImplementation::HandyKeys => {
                 handy_keys::register_action_shortcut(app, binding);
-            }
-        }
-    }
-}
-
-/// Unregister all action shortcuts (called when recording stops)
-pub fn unregister_action_shortcuts(app: &AppHandle) {
-    let settings = get_settings(app);
-    for key in 1..=9u8 {
-        let shortcut_str = format!("ctrl+{}", key);
-        let binding = ShortcutBinding {
-            id: format!("action_{}", key),
-            name: String::new(),
-            description: String::new(),
-            default_binding: shortcut_str.clone(),
-            current_binding: shortcut_str,
-        };
-        match settings.keyboard_implementation {
-            KeyboardImplementation::Tauri => {
-                tauri_impl::unregister_action_shortcut(app, binding);
-            }
-            KeyboardImplementation::HandyKeys => {
-                handy_keys::unregister_action_shortcut(app, binding);
             }
         }
     }
@@ -251,7 +232,8 @@ pub fn change_binding(
 #[tauri::command]
 #[specta::specta]
 pub fn reset_binding(app: AppHandle, id: String) -> Result<BindingResponse, String> {
-    let binding = settings::get_stored_binding(&app, &id);
+    let binding = settings::get_stored_binding(&app, &id)
+        .ok_or_else(|| format!("Binding '{}' not found", id))?;
     change_binding(app, id, binding.default_binding)
 }
 

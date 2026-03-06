@@ -60,7 +60,10 @@ fn is_valid_audio_file_name(file_name: &str) -> bool {
         && !file_name.contains('\\')
 }
 
-fn get_audio_file_path_from_dir(recordings_dir: &std::path::Path, file_name: &str) -> Result<PathBuf> {
+fn get_audio_file_path_from_dir(
+    recordings_dir: &std::path::Path,
+    file_name: &str,
+) -> Result<PathBuf> {
     if !is_valid_audio_file_name(file_name) {
         anyhow::bail!("Invalid file name");
     }

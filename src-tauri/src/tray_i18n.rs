@@ -34,3 +34,82 @@ pub fn get_tray_translations(locale: Option<String>) -> TrayStrings {
         .cloned()
         .expect("English translations must exist")
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_language_code_strips_region() {
+        assert_eq!(get_language_code("en-US"), "en");
+        assert_eq!(get_language_code("fr-FR"), "fr");
+        assert_eq!(get_language_code("zh-TW"), "zh");
+    }
+
+    #[test]
+    fn get_language_code_handles_underscore() {
+        assert_eq!(get_language_code("pt_BR"), "pt");
+    }
+
+    #[test]
+    fn get_language_code_returns_bare_code() {
+        assert_eq!(get_language_code("en"), "en");
+        assert_eq!(get_language_code("de"), "de");
+    }
+
+    #[test]
+    fn get_language_code_empty_returns_empty() {
+        // Empty input returns "" — the caller (get_tray_translations) handles
+        // the fallback to English when the code misses in TRANSLATIONS.
+        let code = get_language_code("");
+        assert_eq!(code, "");
+    }
+
+    #[test]
+    fn translations_none_returns_english() {
+        let strings = get_tray_translations(None);
+        // English quit should be "Quit"
+        assert_eq!(strings.quit, "Quit");
+    }
+
+    #[test]
+    fn translations_english_explicit() {
+        let strings = get_tray_translations(Some("en".to_string()));
+        assert_eq!(strings.quit, "Quit");
+        assert!(!strings.settings.is_empty());
+    }
+
+    #[test]
+    fn translations_with_region_code() {
+        let strings = get_tray_translations(Some("en-US".to_string()));
+        assert_eq!(strings.quit, "Quit");
+    }
+
+    #[test]
+    fn translations_unknown_falls_back_to_english() {
+        let strings = get_tray_translations(Some("xx-XX".to_string()));
+        assert_eq!(strings.quit, "Quit");
+    }
+
+    #[test]
+    fn translations_french_has_content() {
+        let strings = get_tray_translations(Some("fr".to_string()));
+        assert!(!strings.quit.is_empty());
+        assert!(!strings.settings.is_empty());
+    }
+
+    #[test]
+    fn translations_map_has_english() {
+        assert!(TRANSLATIONS.contains_key("en"));
+    }
+
+    #[test]
+    fn translations_map_has_multiple_languages() {
+        // We expect at least 10 languages
+        assert!(
+            TRANSLATIONS.len() >= 10,
+            "Expected at least 10 translation languages, found {}",
+            TRANSLATIONS.len()
+        );
+    }
+}
