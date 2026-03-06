@@ -147,9 +147,9 @@ bun run format:check  # formatting
 | `Option+Shift+Space` | Record + post-process       |
 | `Escape`             | Cancel recording            |
 | `Cmd+Shift+D`        | Debug mode                  |
-| `Option+Space` + `1` | Voice navigate (zoxide)     |
-| `Option+Space` + `2` | Voice open Yazi             |
-| `Option+Space` + `3` | Voice bash command (Ollama) |
+| `Ctrl+1`             | Voice navigate (zoxide)     |
+| `Ctrl+2`             | Voice open Yazi             |
+| `Ctrl+3`             | Voice bash command (Ollama) |
 
 ---
 
